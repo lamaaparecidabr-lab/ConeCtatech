@@ -20,7 +20,10 @@ export interface TelemetryData {
   engineIgnitionCycles?: number;
   vin?: string;
   ecuPartNumber?: string;
+  ecuCalId?: string;
+  ecuSoftwareLevel?: number;
   activeDtcList?: string[];
+  historicDtcList?: string[];
   // O2 & Fuel Trim Data
   frontO2Voltage?: number; // 0.00V - 1.00V
   rearO2Voltage?: number;  // 0.00V - 1.00V

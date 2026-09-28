@@ -2,6 +2,16 @@ import { TelemetryData, PacketLog } from '../types';
 
 export class J1850Decoder {
   private buffer: string = '';
+  // HarleyDroid persistent block buffers for assembling VIN, ECM Part Number and CalID
+  private vinChars: string[] = Array(17).fill('-');
+  private ecmPnChars: string[] = Array(12).fill('-');
+  private ecmCalIdChars: string[] = Array(12).fill('-');
+
+  public resetCounters() {
+    this.vinChars = Array(17).fill('-');
+    this.ecmPnChars = Array(12).fill('-');
+    this.ecmCalIdChars = Array(12).fill('-');
+  }
 
   /**
    * Cleans raw incoming serial chunk and parses complete frames/lines
