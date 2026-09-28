@@ -226,118 +226,39 @@ export default function App() {
   const isConnected = connectionType !== 'disconnected';
 
   return (
-    <div className="min-h-screen bg-[#0d0d0d] text-neutral-100 flex flex-col font-sans selection:bg-orange-500/30">
+    <div className="min-h-screen bg-[#0d0d0d] text-neutral-100 flex flex-col font-sans selection:bg-orange-500/30 overflow-x-hidden w-full max-w-full">
       {/* Top Header com Botão MIL Injeção idêntico ao original */}
-      <header className="border-b border-neutral-900 bg-[#121212] sticky top-0 z-40 px-4 py-3 shadow-md">
-        <div className="max-w-6xl mx-auto flex items-center justify-between flex-wrap gap-3">
+      <header className="border-b border-neutral-900 bg-[#121212] sticky top-0 z-40 px-3 sm:px-4 py-2.5 sm:py-3 shadow-md w-full">
+        {/* Row 1: Brand & Top Action Buttons */}
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
           {/* Logo & ConeCtaHarley Title */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-600 to-amber-600 p-0.5 shadow-lg shadow-orange-600/30 flex items-center justify-center font-black text-white text-base">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-orange-600 to-amber-600 p-0.5 shadow-lg shadow-orange-600/30 flex items-center justify-center font-black text-white text-sm sm:text-base shrink-0">
               CH
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-extrabold tracking-tight text-xl text-[#ff6600]">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h1 className="font-extrabold tracking-tight text-lg sm:text-xl text-[#ff6600] truncate">
                   ConeCtaHarley
                 </h1>
-                <span className="text-[10px] font-mono text-orange-400 bg-orange-950/60 border border-orange-900/60 px-1.5 py-0.5 rounded">
-                  J1850 VPW
+                <span className="text-[9px] sm:text-[10px] font-mono text-orange-400 bg-orange-950/60 border border-orange-900/60 px-1 sm:px-1.5 py-0.5 rounded shrink-0">
+                  J1850
                 </span>
               </div>
-              <p className="text-[11px] text-neutral-400">
-                Painel de Monitoramento & Scanner para PC, Mac, Android e iPhone
+              <p className="text-[10px] sm:text-[11px] text-neutral-400 truncate hidden xs:block">
+                Scanner & Painel Harley-Davidson
               </p>
             </div>
           </div>
 
-          {/* O Ícone da Injeção (Botão MIL Alternador de Telas) */}
-          <div className="flex items-center gap-2 sm:gap-4">
+          {/* Right Action Icons & Connect Button */}
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+            {/* O Ícone da Injeção (Botão MIL Alternador de Telas) */}
             <MilButton
               isActive={telemetry.checkEngine}
               activeScreen={activeTab}
               onClick={handleAlternarTela}
             />
-
-            {/* Navigation Tabs */}
-            <div className="flex items-center gap-1 bg-[#181818] p-1 rounded-xl border border-neutral-800 overflow-x-auto max-w-full">
-              <button
-                onClick={() => {
-                  setActiveTab('dashboard');
-                  if (isConnected) retornarModoContinuo();
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                  activeTab === 'dashboard'
-                    ? 'bg-[#ff6600] text-white shadow-md shadow-orange-600/30'
-                    : 'text-neutral-400 hover:text-neutral-200'
-                }`}
-              >
-                <Gauge className="w-3.5 h-3.5" />
-                <span>Painel</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setActiveTab('diagnostics');
-                  if (isConnected) requisitarDadosFiltroDiag();
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                  activeTab === 'diagnostics'
-                    ? 'bg-[#ff6600] text-white shadow-md shadow-orange-600/30'
-                    : 'text-neutral-400 hover:text-neutral-200'
-                }`}
-              >
-                <Wrench className="w-3.5 h-3.5" />
-                <span>Diagnóstico</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('actuators')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                  activeTab === 'actuators'
-                    ? 'bg-[#ff6600] text-white shadow-md shadow-orange-600/30'
-                    : 'text-neutral-400 hover:text-neutral-200'
-                }`}
-              >
-                <Sliders className="w-3.5 h-3.5" />
-                <span>Atuadores</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('oxygen')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                  activeTab === 'oxygen'
-                    ? 'bg-[#ff6600] text-white shadow-md shadow-orange-600/30'
-                    : 'text-neutral-400 hover:text-neutral-200'
-                }`}
-              >
-                <Activity className="w-3.5 h-3.5" />
-                <span>Sondas O₂ / AFR</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('datalogger')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                  activeTab === 'datalogger'
-                    ? 'bg-[#ff6600] text-white shadow-md shadow-orange-600/30'
-                    : 'text-neutral-400 hover:text-neutral-200'
-                }`}
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-                <span>Datalogger</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('terminal')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                  activeTab === 'terminal'
-                    ? 'bg-[#ff6600] text-white shadow-md shadow-orange-600/30'
-                    : 'text-neutral-400 hover:text-neutral-200'
-                }`}
-              >
-                <TerminalIcon className="w-3.5 h-3.5" />
-                <span>Terminal</span>
-              </button>
-            </div>
 
             {/* PWA Install Button */}
             <PWAInstallButton />
@@ -345,7 +266,7 @@ export default function App() {
             {/* Audio V-Twin Engine */}
             <button
               onClick={handleToggleSound}
-              className={`p-2 rounded-xl border transition-colors cursor-pointer shrink-0 ${
+              className={`p-1.5 sm:p-2 rounded-xl border transition-colors cursor-pointer shrink-0 ${
                 !isSoundMuted
                   ? 'bg-orange-950/60 border-orange-700 text-orange-400'
                   : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-neutral-200'
@@ -359,25 +280,108 @@ export default function App() {
             {isConnected ? (
               <button
                 onClick={handleDisconnect}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-red-950/80 hover:bg-red-900 text-red-200 text-xs font-bold border border-red-800 rounded-xl transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-950/80 hover:bg-red-900 text-red-200 text-xs font-bold border border-red-800 rounded-xl transition-colors cursor-pointer"
               >
                 <Power className="w-3.5 h-3.5" />
-                <span>Desconectar</span>
+                <span className="hidden sm:inline">Desconectar</span>
               </button>
             ) : (
               <button
                 id="btn-conectar"
                 onClick={() => setIsModalOpen(true)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#ff6600] hover:bg-[#e05500] text-white text-xs font-extrabold uppercase tracking-wider rounded-xl shadow-lg shadow-orange-600/30 transition-all hover:scale-[1.02] cursor-pointer"
+                className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 bg-[#ff6600] hover:bg-[#e05500] text-white text-xs font-extrabold uppercase tracking-wider rounded-xl shadow-lg shadow-orange-600/30 transition-all hover:scale-[1.02] cursor-pointer shrink-0"
               >
                 <Bluetooth className="w-3.5 h-3.5" />
-                <span>Conectar ELM327</span>
+                <span>Conectar</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* Global Connection Status Banner */}
+        {/* Row 2: Horizontally Scrollable Navigation Strip (Stories / Tabs style) */}
+        <div className="max-w-6xl mx-auto mt-2 pt-2 border-t border-neutral-900/90 w-full overflow-hidden">
+          <nav className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth touch-pan-x py-0.5">
+            <button
+              onClick={() => {
+                setActiveTab('dashboard');
+                if (isConnected) retornarModoContinuo();
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 whitespace-nowrap cursor-pointer ${
+                activeTab === 'dashboard'
+                  ? 'bg-[#ff6600] text-white shadow-md shadow-orange-600/30'
+                  : 'bg-neutral-900/60 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
+              }`}
+            >
+              <Gauge className="w-3.5 h-3.5" />
+              <span>Painel</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('diagnostics');
+                if (isConnected) requisitarDadosFiltroDiag();
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 whitespace-nowrap cursor-pointer ${
+                activeTab === 'diagnostics'
+                  ? 'bg-[#ff6600] text-white shadow-md shadow-orange-600/30'
+                  : 'bg-neutral-900/60 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
+              }`}
+            >
+              <Wrench className="w-3.5 h-3.5" />
+              <span>Diagnóstico</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('actuators')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 whitespace-nowrap cursor-pointer ${
+                activeTab === 'actuators'
+                  ? 'bg-[#ff6600] text-white shadow-md shadow-orange-600/30'
+                  : 'bg-neutral-900/60 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
+              }`}
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>Atuadores</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('oxygen')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 whitespace-nowrap cursor-pointer ${
+                activeTab === 'oxygen'
+                  ? 'bg-[#ff6600] text-white shadow-md shadow-orange-600/30'
+                  : 'bg-neutral-900/60 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>Sondas O₂ / AFR</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('datalogger')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 whitespace-nowrap cursor-pointer ${
+                activeTab === 'datalogger'
+                  ? 'bg-[#ff6600] text-white shadow-md shadow-orange-600/30'
+                  : 'bg-neutral-900/60 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
+              }`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Datalogger</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('terminal')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 whitespace-nowrap cursor-pointer ${
+                activeTab === 'terminal'
+                  ? 'bg-[#ff6600] text-white shadow-md shadow-orange-600/30'
+                  : 'bg-neutral-900/60 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
+              }`}
+            >
+              <TerminalIcon className="w-3.5 h-3.5" />
+              <span>Terminal</span>
+            </button>
+          </nav>
+        </div>
+
+        {/* Row 3: Global Connection Status Banner */}
         <div className="max-w-6xl mx-auto mt-2 pt-2 border-t border-neutral-900 flex items-center justify-between text-xs font-mono">
           <div className="flex items-center gap-2">
             <span
