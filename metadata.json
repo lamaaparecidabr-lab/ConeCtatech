@@ -1,0 +1,6 @@
+{
+  "name": "HarleyDroid Web Dash",
+  "description": "Painel de telemetria e diagnóstico J1850 / ELM327 OBD2 em tempo real para motocicletas Harley-Davidson com Bluetooth e Serial.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
