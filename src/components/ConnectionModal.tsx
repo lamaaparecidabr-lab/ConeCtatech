@@ -164,9 +164,16 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
             <p className="text-[11px] sm:text-xs">
               • Use um cabo adaptador <span className="text-neutral-200">Deutsch 4 pinos para OBD2 16 pinos padrão</span> conectado ao dongle ELM327.
             </p>
-            <div className="pt-2 border-t border-neutral-800 text-[11px] text-neutral-400">
-              <span className="text-orange-400 font-bold">Dica para iPhone (iOS): </span>
-              No iPhone, use o navegador <span className="text-neutral-200 font-bold">Bluefy</span> com um adaptador ELM327 modelo <span className="text-neutral-200 font-bold">Bluetooth BLE 4.0</span> (ex: Vgate iCar Pro BLE).
+            <div className="pt-2 border-t border-neutral-800 text-[11px] text-neutral-400 space-y-1.5">
+              <div>
+                <span className="text-orange-400 font-bold">Dica Crucial na Harley: </span>
+                A ignição da moto precisa estar ligada e o <strong className="text-neutral-200">botão vermelho RUN/STOP no guidão deve estar na posição RUN (LIGADO)</strong>. Se estiver em STOP, a ECU Delphi fica sem energia e não transmite dados no barramento J1850.
+              </div>
+              <div>
+                <span className="text-amber-400 font-bold">Tipo de Bluetooth do seu ELM327: </span>
+                <br />• <strong>No iPhone (Bluefy)</strong>: Exige adaptador <span className="text-neutral-200 font-bold">Bluetooth BLE 4.0+</span> (ex: Vgate iCar Pro BLE, Viecar BLE, Veepeak). A Apple não permite conexão com o chip antigo Bluetooth 2.1 clássico.
+                <br />• <strong>No Computador (PC/Mac)</strong>: Se o seu ELM327 for o azul tradicional (v2.1 SPP), pareie nas configurações do Windows e use o botão <span className="text-emerald-400 font-bold">"Serial USB / COM"</span> escolhendo a porta COM criada pelo Windows!
+              </div>
             </div>
           </div>
         </div>

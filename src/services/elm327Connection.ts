@@ -2,10 +2,19 @@ import { ConnectionConfig, ConnectionType, PacketLog, TelemetryData } from '../t
 import { J1850Decoder } from './j1850Decoder';
 
 const BLE_SERVICE_UUIDS = [
-  '0000ffe0-0000-1000-8000-00805f9b34fb', // Vgate, Veepeak, standard BLE OBD
-  '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART Service (OBDLink, Viecar BLE)
-  '0000fff0-0000-1000-8000-00805f9b34fb', // Alternate BLE OBD
-  '00001101-0000-1000-8000-00805f9b34fb', // SPP Serial (classic)
+  '0000ffe0-0000-1000-8000-00805f9b34fb', // Standard BLE OBD (HM-10, CC2541, Viecar, Vgate)
+  '0000fff0-0000-1000-8000-00805f9b34fb', // Chinese BLE OBD clones
+  '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART Service (OBDLink CX, Veepeak, Carista)
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // Telink BLE (Konnwei, Vgate iCar Pro BLE 4.0)
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455', // ISSC / Microchip Transparent UART (IS1678 / BM70)
+  '000018f0-0000-1000-8000-00805f9b34fb', // Vgate alternate BLE
+  '0000fee0-0000-1000-8000-00805f9b34fb', // Veepeak Mini BLE
+  '0000fee7-0000-1000-8000-00805f9b34fb', // Tencent OBD BLE
+  '0000ffe5-0000-1000-8000-00805f9b34fb',
+  '0000ae00-0000-1000-8000-00805f9b34fb',
+  '0000ae30-0000-1000-8000-00805f9b34fb',
+  '5038a328-9d82-4113-8835-12cf51876970',
+  '00001101-0000-1000-8000-00805f9b34fb', // SPP Serial
 ];
 
 export class ELM327Connection {
@@ -19,6 +28,28 @@ export class ELM327Connection {
   private gattServer: any = null;
   private txCharacteristic: any = null;
   private rxCharacteristic: any = null;
+
+  // Active polling timer for real hardware
+  private pollTimer: any = null;
+
+  // Persistent telemetry state so values aren't overwritten between chunks
+  private currentTelemetryState: TelemetryData = {
+    rpm: 0,
+    speedKmH: 0,
+    speedMph: 0,
+    engineTempF: 180,
+    engineTempC: 82,
+    batteryVoltage: 13.8,
+    gear: 'N',
+    turnLeft: false,
+    turnRight: false,
+    neutral: true,
+    checkEngine: false,
+    oilWarning: false,
+    highBeam: false,
+    clutchEngaged: false,
+    lastUpdated: Date.now(),
+  };
 
   // Serial objects
   private serialPort: any = null;
@@ -62,11 +93,41 @@ export class ELM327Connection {
   }
 
   /**
+   * Helper to write to BLE characteristic handling writeWithoutResponse / writeWithResponse
+   */
+  private async writeBleCharacteristic(char: any, data: Uint8Array): Promise<void> {
+    if (!char) throw new Error('Característica BLE de envio não disponível');
+    const props = char.properties || {};
+
+    try {
+      // 95% of cheap ELM327 BLE adapters only support writeWithoutResponse
+      if (props.writeWithoutResponse && typeof char.writeValueWithoutResponse === 'function') {
+        await char.writeValueWithoutResponse(data);
+      } else if (props.write && typeof char.writeValueWithResponse === 'function') {
+        await char.writeValueWithResponse(data);
+      } else if (typeof char.writeValueWithoutResponse === 'function') {
+        await char.writeValueWithoutResponse(data);
+      } else if (typeof char.writeValue === 'function') {
+        await char.writeValue(data);
+      } else {
+        throw new Error('Canal Bluetooth não aceita gravação de dados.');
+      }
+    } catch (e: any) {
+      // Fallback try alternate method
+      if (typeof char.writeValue === 'function') {
+        await char.writeValue(data);
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  /**
    * Connect via Web Bluetooth API (BLE OBD2 adapters / SPP)
    */
   public async connectBluetooth(config: ConnectionConfig): Promise<boolean> {
     if (!('bluetooth' in navigator)) {
-      this.onStatusChange('Web Bluetooth não é suportado neste navegador. Use Chrome/Edge ou teste via Modo Simulador.', true);
+      this.onStatusChange('Web Bluetooth não é suportado neste navegador. Use Bluefy no iPhone ou Chrome/Edge no PC.', true);
       return false;
     }
 
@@ -79,7 +140,7 @@ export class ELM327Connection {
       });
 
       this.bluetoothDevice = device;
-      this.onStatusChange(`Pareando com ${device.name || 'ELM327'}...`);
+      this.onStatusChange(`Pareando com ${device.name || 'ELM327 OBDII'}...`);
 
       device.addEventListener('gattserverdisconnected', () => {
         this.onStatusChange('Dispositivo Bluetooth desconectado.', true);
@@ -101,28 +162,31 @@ export class ELM327Connection {
 
       if (!targetService) {
         // Fallback: try getting any primary service
-        const services = await this.gattServer.getPrimaryServices();
-        if (services.length > 0) {
-          targetService = services[0];
+        try {
+          const services = await this.gattServer.getPrimaryServices();
+          if (services && services.length > 0) {
+            targetService = services[0];
+          }
+        } catch {
+          // ignore
         }
       }
 
       if (!targetService) {
-        throw new Error('Nenhum serviço Serial/OBD2 compatível encontrado no dispositivo.');
+        throw new Error('Nenhum canal BLE compatível encontrado. Se for ELM327 Bluetooth clássico v2.1 (azul), no PC conecte via "Serial USB / COM".');
       }
 
       const characteristics = await targetService.getCharacteristics();
       if (characteristics.length === 0) {
-        throw new Error('Nenhuma característica serial encontrada.');
+        throw new Error('Nenhum canal de envio/recepção serial encontrado no adaptador.');
       }
 
       // Check characteristics for read/notify/write
-      this.txCharacteristic = characteristics[0];
-      this.rxCharacteristic = characteristics.length > 1 ? characteristics[1] : characteristics[0];
+      this.txCharacteristic = null;
+      this.rxCharacteristic = null;
 
-      // In Nordic UART: RX (write to adapter) is 6e400002, TX (notify from adapter) is 6e400003
       for (const char of characteristics) {
-        const props = char.properties;
+        const props = char.properties || {};
         if (props.notify || props.indicate) {
           this.rxCharacteristic = char;
         }
@@ -131,15 +195,20 @@ export class ELM327Connection {
         }
       }
 
+      if (!this.txCharacteristic) this.txCharacteristic = characteristics[0];
+      if (!this.rxCharacteristic) this.rxCharacteristic = characteristics.length > 1 ? characteristics[1] : characteristics[0];
+
       // Start notifications
-      await this.rxCharacteristic.startNotifications();
-      this.rxCharacteristic.addEventListener(
-        'characteristicvaluechanged',
-        (event: any) => this.handleIncomingData(event.target.value)
-      );
+      if (this.rxCharacteristic && (this.rxCharacteristic.properties?.notify || this.rxCharacteristic.properties?.indicate)) {
+        await this.rxCharacteristic.startNotifications();
+        this.rxCharacteristic.addEventListener(
+          'characteristicvaluechanged',
+          (event: any) => this.handleIncomingData(event.target.value)
+        );
+      }
 
       this.connectionType = 'bluetooth';
-      this.onStatusChange('Conectado via Bluetooth! Inicializando protocolo J1850...');
+      this.onStatusChange('Conectado via Bluetooth! Configurando ELM327 para Harley J1850...');
 
       await this.initializeELM327(config);
       return true;
@@ -212,35 +281,67 @@ export class ELM327Connection {
     try {
       this.onStatusChange('Resetando ELM327 (ATZ)...');
       await this.sendCommand('ATZ');
-      await sleep(1200);
+      await sleep(1000);
 
       this.onStatusChange('Desativando Echo (ATE0)...');
       await this.sendCommand('ATE0');
-      await sleep(400);
+      await sleep(250);
 
       this.onStatusChange('Configurando formato de linha (ATL0, ATS0)...');
       await this.sendCommand('ATL0'); // Linefeeds off
-      await sleep(300);
+      await sleep(200);
       await this.sendCommand('ATS0'); // Spaces off
-      await sleep(300);
+      await sleep(200);
+
+      // AT H1 is CRITICAL for Harley J1850 VPW to preserve message headers
+      this.onStatusChange('Ativando Cabeçalhos J1850 (ATH1)...');
+      await this.sendCommand('ATH1');
+      await sleep(250);
 
       // Protocol selection (ATSP2 = SAE J1850 VPW for Harley Davidson)
       this.onStatusChange(`Definindo protocolo ${config.protocol} (Harley J1850 VPW)...`);
       await this.sendCommand(config.protocol);
-      await sleep(500);
+      await sleep(400);
 
       // Check battery voltage
       await this.sendCommand('ATRV');
-      await sleep(400);
+      await sleep(300);
 
       if (config.monitorMode) {
-        this.onStatusChange('Ativando Monitor J1850 em tempo real (ATMA)...');
+        this.onStatusChange('Ativando Monitor J1850 contínuo (ATMA)...');
         await this.sendCommand('ATMA');
       } else {
-        this.onStatusChange('Pronto para comunicação Harley J1850!');
+        this.onStatusChange('Conectado ao ELM327! Lendo dados da Harley-Davidson...');
+        this.startActivePolling();
       }
     } catch (err: any) {
       this.onStatusChange(`Aviso durante inicialização: ${err.message || err}`);
+    }
+  }
+
+  /**
+   * Starts active polling of engine PIDs when connected to real ELM327
+   */
+  public startActivePolling() {
+    this.stopActivePolling();
+    // Cycles standard PIDs: 010C (RPM), 010D (Velocidade), 0105 (Temp Motor), ATRV (Volts)
+    const pids = ['010C', '010D', '0105', 'ATRV'];
+    let idx = 0;
+    this.pollTimer = setInterval(async () => {
+      if (this.connectionType === 'disconnected' || this.connectionType === 'simulator') {
+        this.stopActivePolling();
+        return;
+      }
+      const pid = pids[idx % pids.length];
+      idx++;
+      await this.sendCommand(pid);
+    }, 300);
+  }
+
+  public stopActivePolling() {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
     }
   }
 
@@ -263,7 +364,7 @@ export class ELM327Connection {
 
     try {
       if (this.connectionType === 'bluetooth' && this.txCharacteristic) {
-        await this.txCharacteristic.writeValue(this.textEncoder.encode(formatted));
+        await this.writeBleCharacteristic(this.txCharacteristic, this.textEncoder.encode(formatted));
         return true;
       } else if (this.connectionType === 'serial' && this.serialWriter) {
         await this.serialWriter.write(this.textEncoder.encode(formatted));
@@ -296,29 +397,11 @@ export class ELM327Connection {
       str = this.textDecoder.decode(data);
     }
 
-    // Pass to decoder
-    const current: TelemetryData = {
-      rpm: 0,
-      speedKmH: 0,
-      speedMph: 0,
-      engineTempF: 180,
-      engineTempC: 82,
-      batteryVoltage: 13.8,
-      gear: 'N',
-      turnLeft: false,
-      turnRight: false,
-      neutral: true,
-      checkEngine: false,
-      oilWarning: false,
-      highBeam: false,
-      clutchEngaged: false,
-      lastUpdated: Date.now(),
-    };
-
-    const updated = this.decoder.parseChunk(str, current, (packet) => {
+    const updated = this.decoder.parseChunk(str, this.currentTelemetryState, (packet) => {
       this.onPacketLog(packet);
     });
 
+    this.currentTelemetryState = updated;
     this.onTelemetryUpdate(updated);
   }
 
@@ -802,6 +885,8 @@ export class ELM327Connection {
    * Clean disconnect
    */
   public disconnect() {
+    this.stopActivePolling();
+
     if (this.simTimer) {
       clearInterval(this.simTimer);
       this.simTimer = null;
