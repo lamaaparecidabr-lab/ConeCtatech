@@ -90,6 +90,9 @@ export default function App() {
           ...prev,
           ...newTelemetry,
         }));
+        if (newTelemetry.activeDtcList !== undefined) {
+          setActiveDtcList(newTelemetry.activeDtcList);
+        }
       },
       (newPacket) => {
         setLogs((prev) => {
@@ -98,13 +101,16 @@ export default function App() {
           return updated;
         });
 
-        // Detect Mode 03 DTCs in incoming logs
-        if (newPacket.raw && newPacket.raw.startsWith('43') && newPacket.raw.length >= 6) {
+        // Detect Mode 03 DTCs in incoming logs even with headers
+        if (newPacket.raw && (newPacket.raw.startsWith('43') || newPacket.raw.includes('10 43') || newPacket.raw.includes('6B 10 43'))) {
           const clean = newPacket.raw.replace(/[\s:]+/g, '').toLowerCase();
-          const dtcs = parseMode03DTCs(clean.substring(2));
-          if (dtcs.length > 0) {
-            setActiveDtcList(dtcs);
-            setTelemetry((prev) => ({ ...prev, checkEngine: true }));
+          const idx = clean.indexOf('43');
+          if (idx >= 0 && clean.length >= idx + 6) {
+            const dtcs = parseMode03DTCs(clean.substring(idx + 2));
+            if (dtcs.length > 0) {
+              setActiveDtcList(dtcs);
+              setTelemetry((prev) => ({ ...prev, checkEngine: true }));
+            }
           }
         }
       },
@@ -180,35 +186,26 @@ export default function App() {
   };
 
   const requisitarDadosFiltroDiag = async () => {
-    setStatusMessage('Modo: Lendo Scanner Harley...');
-    handleSendCommand('\r'); // Interrompe fluxo contínuo ATMA
-    setTimeout(() => {
-      handleSendCommand('0902'); // Chassi VIN
-    }, 300);
-    setTimeout(() => {
-      handleSendCommand('0904'); // P/N da ECU
-    }, 700);
-    setTimeout(() => {
-      handleSendCommand('03'); // Códigos de Falha DTC
-    }, 1100);
-    setTimeout(() => {
-      handleSendCommand('220201'); // Odômetro Total do Velocímetro (Nó 0x60)
-    }, 1500);
-    setTimeout(() => {
-      handleSendCommand('22010A'); // Horas Totais e Partidas da ECM Delphi (Nó 0x10)
-    }, 1900);
+    if (connectionRef.current) {
+      await connectionRef.current.requestHarleyDiagnostics();
+    }
   };
 
   const retornarModoContinuo = async () => {
-    setStatusMessage('Modo: Monitoramento Ativo J1850');
-    handleSendCommand('ATMA'); // Retorna à escuta passiva contínua
+    if (connectionRef.current) {
+      await connectionRef.current.resumeLiveDashboard();
+    }
   };
 
-  const handleClearDTC = () => {
-    handleSendCommand('04');
+  const handleClearDTC = async () => {
+    if (connectionRef.current) {
+      setStatusMessage('Apagando falhas da ECM Harley (Modo 04)...');
+      await connectionRef.current.sendCommand('ATSH 68 10 F1');
+      await connectionRef.current.sendCommand('04');
+    }
     setActiveDtcList([]);
     setTelemetry((prev) => ({ ...prev, checkEngine: false }));
-    setStatusMessage('Comando 04 executado: Falhas apagadas da ECU.');
+    setStatusMessage('Comando 04 executado: Memória da ECM limpa.');
   };
 
   const handleToggleSound = () => {

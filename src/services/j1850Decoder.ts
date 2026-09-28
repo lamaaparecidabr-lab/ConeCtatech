@@ -174,26 +174,37 @@ export class J1850Decoder {
       };
     }
 
-    // 5. HARLEY DIAGNÓSTICO: CHASSI / VIN (Modo 09 PID 02 -> Resposta 4902...)
-    else if (cleanHex.startsWith('4902')) {
-      const asciiVin = hexToAscii(cleanHex.substring(4)).toUpperCase().substring(0, 17);
-      if (asciiVin) {
-        telemetry.vin = asciiVin;
+    // 5. HARLEY DIAGNÓSTICO: CHASSI / VIN (Modo 09 PID 02 -> 49 02 ... ou com header 48 6B 10 49 02...)
+    else if (cleanHex.includes('4902')) {
+      const idx = cleanHex.indexOf('4902');
+      let hexData = cleanHex.substring(idx + 4);
+      // Strip line index if present (e.g. 01, 02, 03 in multi-line responses)
+      if (hexData.length > 4 && (hexData.startsWith('01') || hexData.startsWith('02') || hexData.startsWith('03'))) {
+        hexData = hexData.substring(2);
+      }
+      const asciiVin = hexToAscii(hexData).replace(/[^A-HJ-NPR-Z0-9]/gi, '').toUpperCase();
+      if (asciiVin && asciiVin.length >= 7) {
+        telemetry.vin = asciiVin.substring(0, 17);
         packetLog = {
           id: Math.random().toString(36).substring(2, 9),
           timestamp: new Date().toLocaleTimeString(),
           type: 'rx',
           raw: originalLine,
-          decoded: `Chassi Identificado (VIN): ${asciiVin}`,
+          decoded: `Chassi Identificado (VIN): ${telemetry.vin}`,
           tag: 'STATUS',
         };
       }
     }
 
-    // 6. HARLEY DIAGNÓSTICO: ECU PART NUMBER (Modo 09 PID 04 -> Resposta 4904...)
-    else if (cleanHex.startsWith('4904')) {
-      const asciiEcu = hexToAscii(cleanHex.substring(4)).toUpperCase();
-      if (asciiEcu) {
+    // 6. HARLEY DIAGNÓSTICO: ECU PART NUMBER (Modo 09 PID 04 -> 49 04 ... ou com header 48 6B 10 49 04...)
+    else if (cleanHex.includes('4904')) {
+      const idx = cleanHex.indexOf('4904');
+      let hexData = cleanHex.substring(idx + 4);
+      if (hexData.length > 4 && (hexData.startsWith('01') || hexData.startsWith('02'))) {
+        hexData = hexData.substring(2);
+      }
+      const asciiEcu = hexToAscii(hexData).replace(/[^A-Z0-9-]/gi, '').toUpperCase();
+      if (asciiEcu && asciiEcu.length >= 3) {
         telemetry.ecuPartNumber = asciiEcu;
         packetLog = {
           id: Math.random().toString(36).substring(2, 9),
@@ -206,31 +217,48 @@ export class J1850Decoder {
       }
     }
 
-    // 7. HARLEY DIAGNÓSTICO: CÓDIGOS DE FALHA MODO 03 (Resposta 43xxxx...)
-    else if (cleanHex.startsWith('43') && cleanHex.length >= 6) {
-      const parsedDtcs = parseMode03DTCs(cleanHex.substring(2));
-      if (parsedDtcs.length > 0) {
-        telemetry.checkEngine = true;
+    // 7. HARLEY DIAGNÓSTICO: CÓDIGOS DE FALHA MODO 03 (Resposta 43xxxx... ou 48 6B 10 43...)
+    else if (cleanHex.includes('43') && (cleanHex.startsWith('43') || cleanHex.includes('1043') || cleanHex.includes('f143') || cleanHex.includes('6b43'))) {
+      let dtcPayload = '';
+      if (cleanHex.startsWith('43')) {
+        dtcPayload = cleanHex.substring(2);
+      } else {
+        const idx = cleanHex.indexOf('43');
+        if (idx >= 0) {
+          dtcPayload = cleanHex.substring(idx + 2);
+        }
       }
-      packetLog = {
-        id: Math.random().toString(36).substring(2, 9),
-        timestamp: new Date().toLocaleTimeString(),
-        type: 'rx',
-        raw: originalLine,
-        decoded: `DTCs Lidos: ${parsedDtcs.join(', ') || 'Nenhum erro retornado'}`,
-        tag: 'DTC',
-      };
+
+      if (dtcPayload && dtcPayload.length >= 4) {
+        const parsedDtcs = parseMode03DTCs(dtcPayload);
+        telemetry.activeDtcList = parsedDtcs;
+        if (parsedDtcs.length > 0) {
+          telemetry.checkEngine = true;
+        }
+        packetLog = {
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'rx',
+          raw: originalLine,
+          decoded: `DTCs da ECM Harley: ${parsedDtcs.length > 0 ? parsedDtcs.join(', ') : 'Nenhuma falha ativa registrada (43 00 00) [OK]'}`,
+          tag: 'DTC',
+        };
+      }
     }
 
     // 8. HARLEY VELOCÍMETRO (0x60): ODÔMETRO TOTAL (Broadcast 486010... ou Mode 22 PID 0201 / Mode 01 PID A6)
-    else if (cleanHex.startsWith('620201') || cleanHex.startsWith('41a6') || cleanHex.includes('486010') || cleanHex.includes('a86010')) {
+    else if (cleanHex.includes('620201') || cleanHex.includes('41a6') || cleanHex.includes('486010') || cleanHex.includes('a86010')) {
       let odoKm = 0;
-      if (cleanHex.startsWith('620201') && cleanHex.length >= 12) {
-        // Resposta Mode 22 PID 02 01 do velocímetro (ex: 620201 0085B2 -> 34.226 km)
-        odoKm = parseInt(cleanHex.substring(6, 12), 16);
-      } else if (cleanHex.startsWith('41a6') && cleanHex.length >= 12) {
-        // Resposta OBD2 Mode 01 PID A6 (odômetro em 1/10 km)
-        odoKm = Math.round(parseInt(cleanHex.substring(4, 12), 16) / 10);
+      if (cleanHex.includes('620201')) {
+        const idx = cleanHex.indexOf('620201');
+        if (cleanHex.length >= idx + 12) {
+          odoKm = parseInt(cleanHex.substr(idx + 6, 6), 16);
+        }
+      } else if (cleanHex.includes('41a6')) {
+        const idx = cleanHex.indexOf('41a6');
+        if (cleanHex.length >= idx + 12) {
+          odoKm = Math.round(parseInt(cleanHex.substr(idx + 4, 8), 16) / 10);
+        }
       } else if (cleanHex.includes('486010')) {
         const idx = cleanHex.indexOf('486010');
         if (cleanHex.length >= idx + 14) {
@@ -252,32 +280,35 @@ export class J1850Decoder {
     }
 
     // 9. HARLEY ECM (0x10): HORÍMETRO & CICLOS DE IGNIÇÃO DA ECU (Mode 22 PID 010A ou 011F)
-    else if (cleanHex.startsWith('62010a') || cleanHex.startsWith('411f') || cleanHex.includes('2810600a')) {
-      if (cleanHex.startsWith('62010a') && cleanHex.length >= 16) {
-        // Resposta Mode 22 PID 01 0A: 62 01 0A [2 bytes horas] [1 byte minutos] [2 bytes ignições]
-        const hours = parseInt(cleanHex.substring(6, 10), 16);
-        const minutes = parseInt(cleanHex.substring(10, 12), 16);
-        const starts = parseInt(cleanHex.substring(12, 16), 16);
+    else if (cleanHex.includes('62010a') || cleanHex.includes('411f') || cleanHex.includes('2810600a')) {
+      if (cleanHex.includes('62010a')) {
+        const idx = cleanHex.indexOf('62010a');
+        if (cleanHex.length >= idx + 16) {
+          const hours = parseInt(cleanHex.substr(idx + 6, 4), 16);
+          const minutes = parseInt(cleanHex.substr(idx + 10, 2), 16);
+          const starts = parseInt(cleanHex.substr(idx + 12, 4), 16);
 
-        if (!isNaN(hours)) {
-          telemetry.engineHoursTotal = hours;
-          telemetry.engineMinutesTotal = isNaN(minutes) ? 0 : minutes;
-          telemetry.engineIgnitionCycles = isNaN(starts) ? undefined : starts;
+          if (!isNaN(hours)) {
+            telemetry.engineHoursTotal = hours;
+            telemetry.engineMinutesTotal = isNaN(minutes) ? 0 : minutes;
+            telemetry.engineIgnitionCycles = isNaN(starts) ? undefined : starts;
 
-          packetLog = {
-            id: Math.random().toString(36).substring(2, 9),
-            timestamp: new Date().toLocaleTimeString(),
-            type: 'rx',
-            raw: originalLine,
-            decoded: `Auditoria ECM Delphi: ${hours}h ${minutes}min de motor ligado | ${starts} partidas`,
-            tag: 'STATUS',
-          };
+            packetLog = {
+              id: Math.random().toString(36).substring(2, 9),
+              timestamp: new Date().toLocaleTimeString(),
+              type: 'rx',
+              raw: originalLine,
+              decoded: `Auditoria ECM Delphi: ${hours}h ${minutes}min de motor | ${starts} partidas`,
+              tag: 'STATUS',
+            };
+          }
         }
-      } else if (cleanHex.startsWith('411f') && cleanHex.length >= 8) {
-        // Mode 01 PID 1F: Run time seconds
-        const seconds = parseInt(cleanHex.substring(4, 8), 16);
-        if (!isNaN(seconds)) {
-          const totalMins = Math.round(seconds / 60);
+      } else if (cleanHex.includes('411f')) {
+        const idx = cleanHex.indexOf('411f');
+        if (cleanHex.length >= idx + 8) {
+          const seconds = parseInt(cleanHex.substr(idx + 4, 4), 16);
+          if (!isNaN(seconds)) {
+            const totalMins = Math.round(seconds / 60);
           telemetry.engineHoursTotal = Math.floor(totalMins / 60);
           telemetry.engineMinutesTotal = totalMins % 60;
           packetLog = {
@@ -291,6 +322,7 @@ export class J1850Decoder {
         }
       }
     }
+  }
 
     // 8. HARLEY INDICADORES & SWITCHES (288329xx / 483b10xx)
     else if (cleanHex.includes('483b10') || cleanHex.includes('288329')) {

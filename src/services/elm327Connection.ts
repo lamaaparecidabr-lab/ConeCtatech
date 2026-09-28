@@ -231,7 +231,8 @@ export class ELM327Connection {
     try {
       this.onStatusChange('Selecione a porta serial do ELM327...');
       this.serialPort = await (navigator as any).serial.requestPort();
-      await this.serialPort.open({ baudRate: 38400 });
+      const baud = config.baudRate || 38400;
+      await this.serialPort.open({ baudRate: baud });
 
       this.serialWriter = this.serialPort.writable.getWriter();
       this.serialKeepReading = true;
@@ -346,19 +347,107 @@ export class ELM327Connection {
   }
 
   /**
+   * Sends a break / abort signal (single space or CR) to stop ATMA streaming on ELM327
+   */
+  public async sendBreak(): Promise<boolean> {
+    const raw = ' \r';
+    try {
+      if (this.connectionType === 'bluetooth' && this.txCharacteristic) {
+        await this.writeBleCharacteristic(this.txCharacteristic, this.textEncoder.encode(raw));
+        return true;
+      } else if (this.connectionType === 'serial' && this.serialWriter) {
+        await this.serialWriter.write(this.textEncoder.encode(raw));
+        return true;
+      }
+    } catch (e) {
+      console.warn('sendBreak warning:', e);
+    }
+    return false;
+  }
+
+  /**
+   * Request Harley Diagnostics (VIN, ECU Part Number, DTCs, Odometer)
+   */
+  public async requestHarleyDiagnostics(): Promise<void> {
+    const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+    this.onStatusChange('Interrompendo monitoramento contínuo...');
+    // 1. Send break character to interrupt ATMA
+    await this.sendBreak();
+    await sleep(350);
+
+    // 2. Set Header for Harley Delphi ECM (Node 0x10)
+    this.onStatusChange('Configurando cabeçalho ECM Harley (ATSH 68 10 F1)...');
+    await this.sendCommand('ATSH 68 10 F1');
+    await sleep(250);
+
+    // 3. Request VIN (Mode 09 PID 02)
+    this.onStatusChange('Consultando Chassi (VIN 0902)...');
+    await this.sendCommand('0902');
+    await sleep(450);
+
+    // 4. Request ECU Calibration / Part Number (Mode 09 PID 04)
+    this.onStatusChange('Consultando P/N da ECM (0904)...');
+    await this.sendCommand('0904');
+    await sleep(450);
+
+    // 5. Request DTC Trouble Codes (Mode 03)
+    this.onStatusChange('Lendo códigos de falha DTC (03)...');
+    await this.sendCommand('03');
+    await sleep(450);
+
+    // 6. Request Engine Run Time & Starts (Mode 22 PID 010A ou 011F)
+    this.onStatusChange('Lendo auditoria ECM (22010A)...');
+    await this.sendCommand('22010A');
+    await sleep(350);
+    await this.sendCommand('011F');
+    await sleep(350);
+
+    // 7. Set Header for Harley Speedometer (Node 0x60) for Odometer
+    this.onStatusChange('Consultando Velocímetro (ATSH 68 60 F1)...');
+    await this.sendCommand('ATSH 68 60 F1');
+    await sleep(250);
+
+    // 8. Request Odometer (Mode 22 PID 0201 ou 01A6)
+    await this.sendCommand('220201');
+    await sleep(350);
+    await this.sendCommand('01A6');
+    await sleep(350);
+
+    this.onStatusChange('Diagnóstico da ECM concluído!');
+  }
+
+  /**
+   * Resumes live dashboard monitoring (re-enters ATMA or polling)
+   */
+  public async resumeLiveDashboard(): Promise<void> {
+    const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+    this.onStatusChange('Retornando ao Painel em Tempo Real...');
+    await this.sendBreak();
+    await sleep(250);
+
+    // Reset default functional header
+    await this.sendCommand('ATSH 68 6A F1');
+    await sleep(200);
+
+    // Re-enter monitor all mode
+    await this.sendCommand('ATMA');
+    this.onStatusChange('Painel Harley-Davidson Ativo!');
+  }
+
+  /**
    * Sends raw string to ELM327
    */
   public async sendCommand(cmd: string): Promise<boolean> {
     const clean = cmd.trim();
-    if (!clean) return false;
-    const formatted = clean + '\r';
+    const formatted = (clean || ' ') + '\r';
 
     this.onPacketLog({
       id: Math.random().toString(36).substring(2, 9),
       timestamp: new Date().toLocaleTimeString(),
       type: 'tx',
-      raw: clean,
-      decoded: `Comando enviado: ${clean}`,
+      raw: clean || '\\r',
+      decoded: `Comando enviado: ${clean || 'BREAK'}`,
       tag: 'AT',
     });
 

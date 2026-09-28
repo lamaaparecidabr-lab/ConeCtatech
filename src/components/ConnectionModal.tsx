@@ -116,7 +116,7 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
               Configurações de Comunicação
             </span>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <div>
                 <label className="text-neutral-400 block mb-1">Protocolo ELM327:</label>
                 <select
@@ -126,14 +126,29 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
                   }
                   className="w-full bg-black/60 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-200 focus:outline-none focus:border-orange-500 font-mono text-xs"
                 >
-                  <option value="ATSP2">ATSP2 - SAE J1850 VPW (Padrão Harley)</option>
+                  <option value="ATSP2">ATSP2 - SAE J1850 VPW (Harley)</option>
                   <option value="ATSP1">ATSP1 - SAE J1850 PWM</option>
-                  <option value="ATSP0">ATSP0 - Automático (ELM Auto-detect)</option>
+                  <option value="ATSP0">ATSP0 - Auto Detect</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-neutral-400 block mb-1">Modo Monitor Passivo (ATMA):</label>
+                <label className="text-neutral-400 block mb-1">Velocidade Serial (Baud):</label>
+                <select
+                  value={config.baudRate || 38400}
+                  onChange={(e) =>
+                    onChangeConfig({ ...config, baudRate: parseInt(e.target.value, 10) })
+                  }
+                  className="w-full bg-black/60 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-200 focus:outline-none focus:border-orange-500 font-mono text-xs"
+                >
+                  <option value="38400">38400 baud (Padrão ELM327)</option>
+                  <option value="9600">9600 baud (Clones lentos)</option>
+                  <option value="115200">115200 baud (OBDLink rápido)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-neutral-400 block mb-1">Modo Monitor Passivo:</label>
                 <div className="flex items-center gap-2 mt-2">
                   <input
                     type="checkbox"
@@ -145,7 +160,7 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
                     className="w-4 h-4 accent-orange-500 cursor-pointer"
                   />
                   <label htmlFor="monitorModeCheck" className="text-neutral-300 cursor-pointer text-xs">
-                    Escuta passiva J1850 (<code className="text-orange-400 font-mono">ATMA</code>)
+                    Escuta <code className="text-orange-400 font-mono">ATMA</code>
                   </label>
                 </div>
               </div>

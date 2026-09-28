@@ -20,6 +20,7 @@ export interface TelemetryData {
   engineIgnitionCycles?: number;
   vin?: string;
   ecuPartNumber?: string;
+  activeDtcList?: string[];
   // O2 & Fuel Trim Data
   frontO2Voltage?: number; // 0.00V - 1.00V
   rearO2Voltage?: number;  // 0.00V - 1.00V
@@ -57,6 +58,7 @@ export interface ConnectionConfig {
   tempUnit: 'celsius' | 'fahrenheit';
   monitorMode: boolean; // ATMA
   soundEnabled: boolean;
+  baudRate?: number; // 38400 (default) or 9600, 115200
 }
 
 export interface ActuatorTestItem {
