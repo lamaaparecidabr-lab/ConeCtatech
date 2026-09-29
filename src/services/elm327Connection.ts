@@ -62,9 +62,16 @@ export class ELM327Connection {
   private serialWriter: any = null;
   private serialKeepReading = false;
 
+  // Persistent RX Buffer for BLE and Serial chunks
+  private rxBuffer = '';
+
+  // Active connection configuration
+  private activeConfig: ConnectionConfig | null = null;
+
   // Simulator state
   private simTimer: any = null;
   private simDtcSpawnTimer: any = null;
+  private simStreamPaused = false;
   private simCurrentHeader: string = '68 6A F1';
   private simRpm = 980;
   private simTargetRpm = 980;
@@ -279,6 +286,7 @@ export class ELM327Connection {
    * Send AT initialization commands sequence to ELM327
    */
   public async initializeELM327(config: ConnectionConfig) {
+    this.activeConfig = config;
     const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
     try {
@@ -308,10 +316,11 @@ export class ELM327Connection {
       await sleep(300);
 
       if (config.monitorMode) {
+        this.stopActivePolling();
         this.onStatusChange('Ativando Monitor J1850 contínuo (ATMA)...');
         await this.sendCommand('ATMA');
       } else {
-        this.onStatusChange('Conectado ao ELM327! Lendo dados da Harley-Davidson...');
+        this.onStatusChange('Conectado ao ELM327! Modo Harley J1850 Ativo...');
         this.startActivePolling();
       }
     } catch (err: any) {
@@ -321,17 +330,19 @@ export class ELM327Connection {
 
   public startActivePolling() {
     this.stopActivePolling();
-    const pids = ['010C', '010D', '0105', 'ATRV'];
-    let idx = 0;
+    // ATMA e activePolling são mutuamente exclusivos: se monitorMode estiver ativo, não iniciar polling
+    if (this.activeConfig?.monitorMode) {
+      return;
+    }
+
+    // Em modo Harley J1850, não concorre com 010C/010D/0105; consulta apenas tensão ATRV controlada
     this.pollTimer = setInterval(async () => {
       if (this.connectionType === 'disconnected' || this.connectionType === 'simulator') {
         this.stopActivePolling();
         return;
       }
-      const pid = pids[idx % pids.length];
-      idx++;
-      await this.sendCommand(pid);
-    }, 300);
+      await this.sendCommand('ATRV');
+    }, 2500);
   }
 
   public stopActivePolling() {
@@ -354,6 +365,7 @@ export class ELM327Connection {
         await this.serialWriter.write(this.textEncoder.encode(raw));
         return true;
       } else if (this.connectionType === 'simulator') {
+        this.simStreamPaused = true;
         return true;
       }
     } catch (e) {
@@ -398,6 +410,14 @@ export class ELM327Connection {
         if (!resolved) {
           resolved = true;
           cleanup();
+          this.onPacketLog({
+            id: Math.random().toString(36).substring(2, 9),
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'error',
+            raw: `TIMEOUT: ${cmd}`,
+            decoded: `Timeout aguardando "${expect}" para o comando "${cmd}" (${timeoutMs}ms). Resposta obtida: ${replyAccum.trim() || 'NENHUMA'}`,
+            tag: 'AT',
+          });
           resolve({ success: false, reply: replyAccum });
         }
       }, timeoutMs);
@@ -419,8 +439,8 @@ export class ELM327Connection {
     await this.sendBreak();
     await sleep(350);
 
-    // Reseta acumuladores locais do decoder para a nova sessão de diagnóstico
-    this.decoder.resetCounters();
+    // Reseta apenas estado de diagnóstico sem zerar odômetro live
+    this.decoder.resetDiagnosticState();
 
     // 1. CONSULTA DE IDENTIFICAÇÃO DA ECM (0C 10 F1)
     // Comandos 3C 01 até 3C 11
@@ -522,11 +542,12 @@ export class ELM327Connection {
   }
 
   /**
-   * Resumes live dashboard monitoring (re-enters ATMA or polling)
+   * Resumes live dashboard monitoring (re-enters ATMA or polling based on ConnectionConfig)
    */
   public async resumeLiveDashboard(): Promise<void> {
     const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
     this.onStatusChange('Retornando ao Painel em Tempo Real...');
+    this.stopActivePolling();
     await this.sendBreak();
     await sleep(250);
 
@@ -534,9 +555,14 @@ export class ELM327Connection {
     await this.sendCommand('ATSH 68 6A F1');
     await sleep(200);
 
-    // Re-enter monitor all mode
-    await this.sendCommand('ATMA');
-    this.onStatusChange('Painel Harley-Davidson Ativo!');
+    // Se monitorMode for true (padrão Harley J1850), restaura ATMA
+    if (this.activeConfig?.monitorMode !== false) {
+      await this.sendCommand('ATMA');
+      this.onStatusChange('Painel Harley-Davidson Ativo (ATMA)!');
+    } else {
+      this.startActivePolling();
+      this.onStatusChange('Painel Harley-Davidson Ativo (Polling)!');
+    }
   }
 
   /**
@@ -580,33 +606,67 @@ export class ELM327Connection {
   }
 
   /**
-   * Process raw byte chunks coming from Bluetooth, Serial or Simulator
+   * Process raw byte chunks coming from Bluetooth, Serial or Simulator using persistent RX buffer
    */
   private handleIncomingData(data: ArrayBuffer | Uint8Array | DataView) {
-    let str = '';
+    let chunkStr = '';
     if (data instanceof DataView) {
-      str = this.textDecoder.decode(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+      chunkStr = this.textDecoder.decode(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
     } else {
-      str = this.textDecoder.decode(data);
+      chunkStr = this.textDecoder.decode(data);
     }
 
-    // Avisa listeners de resposta ativos (rotina chat)
-    const lines = str.split(/[\r\n>]+/);
-    for (const l of lines) {
-      const trimmed = l.trim();
-      if (trimmed) {
-        for (const listener of [...this.responseListeners]) {
-          listener(trimmed);
-        }
+    this.rxBuffer += chunkStr;
+
+    // Extrai linhas completas delimitadas por \r, \n ou prompt '>'
+    const completeLines: string[] = [];
+    while (this.rxBuffer.length > 0) {
+      const crIdx = this.rxBuffer.indexOf('\r');
+      const lfIdx = this.rxBuffer.indexOf('\n');
+      const promptIdx = this.rxBuffer.indexOf('>');
+
+      const validIndices = [crIdx, lfIdx, promptIdx].filter((i) => i !== -1);
+      if (validIndices.length === 0) {
+        // Sem delimitadores completos disponíveis; mantém fragmento pendente no buffer
+        break;
+      }
+
+      const nextDelimiter = Math.min(...validIndices);
+      const lineSegment = this.rxBuffer.substring(0, nextDelimiter).trim();
+      const delimiterChar = this.rxBuffer[nextDelimiter];
+
+      // Avança além do delimitador consumido (se for \r\n, consome ambos)
+      if (this.rxBuffer.startsWith('\r\n', nextDelimiter)) {
+        this.rxBuffer = this.rxBuffer.substring(nextDelimiter + 2);
+      } else {
+        this.rxBuffer = this.rxBuffer.substring(nextDelimiter + 1);
+      }
+
+      if (lineSegment) {
+        completeLines.push(lineSegment);
+      } else if (delimiterChar === '>') {
+        completeLines.push('>');
       }
     }
 
-    const updated = this.decoder.parseChunk(str, this.currentTelemetryState, (packet) => {
-      this.onPacketLog(packet);
-    });
+    // Processa a MESMA linha completa para listeners/chat, decoder e logs
+    for (const line of completeLines) {
+      // 1. Notifica listeners de resposta ativos (rotina chat)
+      for (const listener of [...this.responseListeners]) {
+        listener(line);
+      }
 
-    this.currentTelemetryState = updated;
-    this.onTelemetryUpdate(updated);
+      // 2. Decodifica a linha pelo J1850Decoder oficial e emite logs
+      const updated = this.decoder.parseChunk(line + '\r\n', this.currentTelemetryState, (packet) => {
+        this.onPacketLog(packet);
+      });
+
+      this.currentTelemetryState = updated;
+    }
+
+    if (completeLines.length > 0) {
+      this.onTelemetryUpdate({ ...this.currentTelemetryState });
+    }
   }
 
   /**
@@ -616,6 +676,7 @@ export class ELM327Connection {
     this.disconnect();
     this.connectionType = 'simulator';
     this.simRunning = true;
+    this.simStreamPaused = false;
     this.simRpm = 980;
     this.simTargetRpm = 980;
     this.simSpeed = 0;
@@ -670,11 +731,19 @@ export class ELM327Connection {
     this.simTimer = setInterval(() => {
       tick++;
 
-      const idleJitter = (Math.random() - 0.5) * 45;
-      this.simRpm += (this.simTargetRpm - this.simRpm) * 0.2 + idleJitter;
+      // Dinâmica de RPM e oscilação orgânica do V-Twin Harley
+      if (this.simTargetRpm <= 1050) {
+        // Marcha lenta natural Harley (oscilação orgânica ~950 a 1020 RPM)
+        const lopeWave = Math.sin(tick * 0.35) * 22;
+        const randomPuff = (Math.random() - 0.5) * 26;
+        this.simRpm = Math.round(this.simTargetRpm + lopeWave + randomPuff);
+      } else {
+        // Aceleração progressiva com inércia mecânica suave
+        this.simRpm += (this.simTargetRpm - this.simRpm) * 0.25 + (Math.random() - 0.5) * 15;
+      }
       this.simRpm = Math.max(0, Math.min(6500, Math.round(this.simRpm)));
 
-      this.simSpeed += (this.simTargetSpeed - this.simSpeed) * 0.15;
+      this.simSpeed += (this.simTargetSpeed - this.simSpeed) * 0.2;
       this.simSpeed = Math.max(0, Math.min(220, Math.round(this.simSpeed)));
 
       if (this.simSpeed > 0) {
@@ -693,8 +762,8 @@ export class ELM327Connection {
         this.simTempF += 0.05;
       }
 
-      // Transmissão periódica dos frames J1850 da Harley
-      if (tick % 2 === 0) {
+      // Transmissão periódica dos frames J1850 da Harley (pausada durante varredura diagnóstica)
+      if (!this.simStreamPaused && tick % 2 === 0) {
         // Frame RPM: 28 1B 10 02 XX XX
         const rpmHex = (Math.round(this.simRpm * 4)).toString(16).padStart(4, '0').toUpperCase();
         const rpmFrame = `28 1B 10 02 ${rpmHex.substring(0, 2)} ${rpmHex.substring(2, 4)}`;
@@ -726,10 +795,14 @@ export class ELM327Connection {
         const odoHex = ticks.toString(16).padStart(4, '0').toUpperCase();
         const odoFrame = `A8 69 10 06 ${odoHex.substring(0, 2)} ${odoHex.substring(2, 4)}`;
 
-        // Processa os frames J1850 pelo decoder oficial
-        this.decoder.parseChunk(`${rpmFrame}\r\n${speedFrame}\r\n${tempFrame}\r\n${gearFrame}\r\n${neutralFrame}\r\n${odoFrame}\r\n`, this.currentTelemetryState, (p) => {
-          this.onPacketLog(p);
-        });
+        // Processa os frames J1850 pelo decoder oficial e atualiza o estado de telemetria
+        this.currentTelemetryState = this.decoder.parseChunk(
+          `${rpmFrame}\r\n${speedFrame}\r\n${tempFrame}\r\n${gearFrame}\r\n${neutralFrame}\r\n${odoFrame}\r\n`,
+          this.currentTelemetryState,
+          (p) => {
+            this.onPacketLog(p);
+          }
+        );
 
         // Oscilação de Sondas Lambda O2
         const timeSec = tick * 0.05;
@@ -772,6 +845,9 @@ export class ELM327Connection {
 
     if (u.startsWith('ATSH')) {
       this.simCurrentHeader = u.replace('ATSH', '').trim();
+      resp = 'OK';
+    } else if (u === 'ATMA' || u.startsWith('ATMA')) {
+      this.simStreamPaused = false;
       resp = 'OK';
     } else if (u === 'ATZ') {
       resp = 'ELM327 v1.5';
@@ -827,6 +903,54 @@ export class ELM327Connection {
         this.simActiveDtcs = [];
       } else {
         resp = '6C F1 60 54';
+      }
+
+      // Se todas as falhas foram limpas, inicia o temporizador de 3 segundos para gerar uma nova falha aleatória
+      if (this.simActiveDtcs.length === 0 && this.simHistoricDtcs.length === 0) {
+        if (this.simDtcSpawnTimer) {
+          clearTimeout(this.simDtcSpawnTimer);
+        }
+        this.simDtcSpawnTimer = setTimeout(() => {
+          if (this.connectionType !== 'simulator') return;
+
+          const possibleFaults = [
+            { code: 'P0131', hex: '01 31', desc: 'Sensor de O2 Dianteiro Pobre / Sinal Baixo' },
+            { code: 'P0562', hex: '05 62', desc: 'Tensão do Sistema Baixa (Bateria/Carga)' },
+            { code: 'P0118', hex: '01 18', desc: 'Sensor ET (Temperatura do Motor) Aberto/Alto' },
+            { code: 'P0505', hex: '05 05', desc: 'Controle de Marcha Lenta (IAC) com Perda de Passo' },
+            { code: 'P1356', hex: '13 56', desc: 'Sem Combustão no Cilindro Traseiro (Misfire)' },
+            { code: 'P0107', hex: '01 07', desc: 'Sensor MAP Circuito Aberto/Baixo' },
+            { code: 'P0261', hex: '02 61', desc: 'Injetor Frontal Aberto/Baixo' },
+            { code: 'P0122', hex: '01 22', desc: 'Sensor TPS 1 Tensão Baixa' },
+          ];
+
+          const randomFault = possibleFaults[Math.floor(Math.random() * possibleFaults.length)];
+          this.simActiveDtcs = [randomFault.code];
+          this.currentTelemetryState.activeDtcList = [randomFault.code];
+          this.currentTelemetryState.checkEngine = true;
+
+          // Emite log da nova falha e ativação da lâmpada MIL no J1850
+          this.onPacketLog({
+            id: Math.random().toString(36).substring(2, 9),
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'rx',
+            raw: `6C F1 40 59 ${randomFault.hex}`,
+            decoded: `[SIMULADOR] Nova falha gravada na ECU: ${randomFault.code} - ${randomFault.desc}`,
+            tag: 'DTC',
+          });
+
+          this.onPacketLog({
+            id: Math.random().toString(36).substring(2, 9),
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'rx',
+            raw: '68 88 10 83',
+            decoded: 'Harley J1850: Lâmpada de Injeção Eletrônica (MIL) ATIVADA [Nova Falha]',
+            tag: 'DTC',
+          });
+
+          this.onStatusChange(`Simulador: Nova falha detectada após 3s (${randomFault.code}). Luz de injeção acendeu!`);
+          this.onTelemetryUpdate({ ...this.currentTelemetryState });
+        }, 3000);
       }
     }
 
@@ -982,7 +1106,10 @@ export class ELM327Connection {
       this.simDtcSpawnTimer = null;
     }
     this.simRunning = false;
+    this.simStreamPaused = false;
     this.responseListeners = [];
+    this.rxBuffer = '';
+    this.decoder.resetCounters();
 
     if (this.gattServer && this.gattServer.connected) {
       try {

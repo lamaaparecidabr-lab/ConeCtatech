@@ -49,18 +49,30 @@ export class J1850Decoder {
   private historicDtcSet: Set<string> = new Set();
 
   // Rastreamento de Odômetro (HarleyDroid odoaccum / odolast)
+  // Referência HarleyDroid: contador incremental de 16 bits (current trip odometer), 1 tick = 0,4m
   private odolast: number = -1;
   private odoaccum: number = 0;
 
   // Timestamp da última leitura de marcha real (para não ser sobrescrita pelo fallback de cálculo)
   private lastRealGearTimestamp: number = 0;
 
-  public resetCounters() {
+  /**
+   * Reseta apenas o estado de diagnóstico (VIN, Part Number, CalID e DTCs)
+   * Preserva intacto o odômetro acumulado em tempo real da sessão (odolast / odoaccum)
+   */
+  public resetDiagnosticState() {
     this.vinChars = Array(17).fill('-');
     this.ecmPnChars = Array(12).fill('-');
     this.ecmCalIdChars = Array(12).fill('-');
     this.activeDtcSet.clear();
     this.historicDtcSet.clear();
+  }
+
+  /**
+   * Reset completo de todos os contadores da sessão (utilizado apenas em nova conexão ou desconexão)
+   */
+  public resetCounters() {
+    this.resetDiagnosticState();
     this.odolast = -1;
     this.odoaccum = 0;
     this.lastRealGearTimestamp = 0;
@@ -581,13 +593,18 @@ export class J1850Decoder {
       const payloadBytes = this.hexStringToBytes(payloadHex);
 
       const parsedCodes: string[] = [];
-      // Cada código DTC é composto por 2 bytes (in[4], in[5])
+      // Se houver um byte ímpar no final, trata-se do byte de CRC do frame J1850 (não faz parte do DTC)
+      if (payloadBytes.length % 2 !== 0) {
+        payloadBytes.pop();
+      }
+
+      // Cada código DTC Harley é rigorosamente composto por 2 bytes (HarleyDroid in[4], in[5])
       for (let i = 0; i + 1 < payloadBytes.length; i += 2) {
         const b0 = payloadBytes[i];
         const b1 = payloadBytes[i + 1];
 
-        // Se ambos forem zero ou chegamos no byte de CRC
-        if (b0 === 0 && b1 === 0) continue;
+        // Se ambos forem 0x00 ou 0xFF, indica ausência de falha / preenchimento
+        if ((b0 === 0 && b1 === 0) || (b0 === 0xff && b1 === 0xff)) continue;
 
         let prefix = 'P';
         switch ((b0 & 0xc0) >> 6) {
@@ -603,7 +620,8 @@ export class J1850Decoder {
         const digit4 = (b1 & 0x0f).toString(16);
         const fullCode = `${prefix}${digit1}${digit2}${digit3}${digit4}`.toUpperCase();
 
-        if (fullCode !== 'P0000') {
+        // P0000 nunca deve ser registrado como falha
+        if (fullCode && fullCode !== 'P0000') {
           parsedCodes.push(fullCode);
           if (node === '10') {
             this.historicDtcSet.add(fullCode);

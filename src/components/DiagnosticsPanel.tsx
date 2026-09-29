@@ -229,7 +229,7 @@ Gerado via Harley J1850 VPW Diagnostic Tool
               onClick={handleDeepScan}
               disabled={!isConnected || isScanning}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white text-xs font-black rounded-xl transition-all shadow-lg shadow-orange-600/20 disabled:opacity-40 cursor-pointer"
-              title="Solicita VIN (09 02), ECU (09 04) e Falhas (03)"
+              title="Executa identificação ECM Harley J1850 (3C), leitura de VIN/CalID/SW e consulta de DTCs dos módulos."
             >
               <RefreshCw
                 className={`w-4 h-4 ${isScanning ? 'animate-spin text-white' : 'text-white'}`}
@@ -245,7 +245,7 @@ Gerado via Harley J1850 VPW Diagnostic Tool
                   ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600'
                   : 'bg-red-950/60 hover:bg-red-900/80 text-red-200 border-red-800/80'
               }`}
-              title="Envia comando Mode 04 para apagar memória de erros"
+              title="Envia comando Harley J1850 14 aos módulos suportados e aguarda confirmação 54."
             >
               {justCleared ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -254,7 +254,7 @@ Gerado via Harley J1850 VPW Diagnostic Tool
               )}
               <span>
                 {justCleared
-                  ? 'Memória Apagada (04)!'
+                  ? 'Memória Apagada (14->54)!'
                   : `Limpar Falhas (${activeFaults.length.toString().padStart(2, '0')})`}
               </span>
             </button>

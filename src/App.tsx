@@ -17,7 +17,6 @@ import {
 import { TelemetryData, ConnectionConfig, ConnectionType, PacketLog } from './types';
 import { ELM327Connection } from './services/elm327Connection';
 import { soundEngine } from './services/soundEngine';
-import { parseMode03DTCs } from './services/j1850Decoder';
 import { GaugeTachometer } from './components/GaugeTachometer';
 import { GaugeSpeedometer } from './components/GaugeSpeedometer';
 import { IndicatorsBar } from './components/IndicatorsBar';
@@ -99,19 +98,6 @@ export default function App() {
           if (updated.length > 300) return updated.slice(-300);
           return updated;
         });
-
-        // Detect Mode 03 DTCs in incoming logs even with headers
-        if (newPacket.raw && (newPacket.raw.startsWith('43') || newPacket.raw.includes('10 43') || newPacket.raw.includes('6B 10 43'))) {
-          const clean = newPacket.raw.replace(/[\s:]+/g, '').toLowerCase();
-          const idx = clean.indexOf('43');
-          if (idx >= 0 && clean.length >= idx + 6) {
-            const dtcs = parseMode03DTCs(clean.substring(idx + 2));
-            if (dtcs.length > 0) {
-              setActiveDtcList(dtcs);
-              setTelemetry((prev) => ({ ...prev, checkEngine: true }));
-            }
-          }
-        }
       },
       (msg, isErr) => {
         setStatusMessage(msg);
