@@ -386,8 +386,8 @@ export class ELM327Connection {
 
       const listener = (line: string) => {
         replyAccum += line + '\n';
-        const cleanLine = line.replace(/[\s:]+/g, '').toUpperCase();
-        if (cleanExpect && cleanLine.includes(cleanExpect)) {
+        const cleanReply = replyAccum.replace(/[\s:]+/g, '').toUpperCase();
+        if (cleanExpect && cleanReply.includes(cleanExpect)) {
           if (!resolved) {
             resolved = true;
             cleanup();
@@ -442,48 +442,206 @@ export class ELM327Connection {
     // Reseta apenas estado de diagnóstico sem zerar odômetro live
     this.decoder.resetDiagnosticState();
 
+    let idSuccessCount = 0;
+    const totalIdQueries = 8;
+    let dtcSuccessCount = 0;
+    const totalDtcQueries = 3;
+
     // 1. CONSULTA DE IDENTIFICAÇÃO DA ECM (0C 10 F1)
     // Comandos 3C 01 até 3C 11
     this.onStatusChange('Configurando cabeçalho de identificação ECM (ATSH 0C 10 F1)...');
-    await this.chat('ATSH 0C 10 F1', 'OK', 500);
+    const hId = await this.chat('ATSH 0C 10 F1', 'OK', 500);
 
     const idCommands = [
-      { cmd: '3C 01', expect: '0CF1107C01', desc: 'ECM Part Number (Bloco 1)' },
-      { cmd: '3C 02', expect: '0CF1107C02', desc: 'ECM Part Number (Bloco 2)' },
-      { cmd: '3C 03', expect: '0CF1107C03', desc: 'Calibration ID (Bloco 1)' },
-      { cmd: '3C 04', expect: '0CF1107C04', desc: 'Calibration ID (Bloco 2)' },
-      { cmd: '3C 0B', expect: '0CF1107C0B', desc: 'ECM Software Level' },
-      { cmd: '3C 0F', expect: '0CF1107C0F', desc: 'Chassi VIN (Bloco 1)' },
-      { cmd: '3C 10', expect: '0CF1107C10', desc: 'Chassi VIN (Bloco 2)' },
-      { cmd: '3C 11', expect: '0CF1107C11', desc: 'Chassi VIN (Bloco 3)' },
+      { cmd: '3C 01', expect: '0CF1107C01', label: 'ECM Part Number bloco 01' },
+      { cmd: '3C 02', expect: '0CF1107C02', label: 'ECM Part Number bloco 02' },
+      { cmd: '3C 03', expect: '0CF1107C03', label: 'Calibration ID bloco 03' },
+      { cmd: '3C 04', expect: '0CF1107C04', label: 'Calibration ID bloco 04' },
+      { cmd: '3C 0B', expect: '0CF1107C0B', label: 'Software Level 0B' },
+      { cmd: '3C 0F', expect: '0CF1107C0F', label: 'VIN bloco 0F' },
+      { cmd: '3C 10', expect: '0CF1107C10', label: 'VIN bloco 10' },
+      { cmd: '3C 11', expect: '0CF1107C11', label: 'VIN bloco 11' },
     ];
 
-    for (const item of idCommands) {
-      this.onStatusChange(`Lendo ${item.desc}...`);
-      await this.chat(item.cmd, item.expect, 600);
-      await sleep(100);
+    if (!hId.success) {
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'error',
+        raw: 'ATSH 0C 10 F1 FAIL',
+        decoded: 'Erro ao configurar cabeçalho de identificação ECM (ATSH 0C 10 F1: OK não recebido). Bloco 3C pulado.',
+        tag: 'AT',
+      });
+    } else {
+      for (const item of idCommands) {
+        this.onStatusChange(`Consultando ${item.label}...`);
+        const res = await this.chat(item.cmd, item.expect, 600);
+        if (res.success) {
+          idSuccessCount++;
+          this.onPacketLog({
+            id: Math.random().toString(36).substring(2, 9),
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'rx',
+            raw: res.reply.trim() || item.cmd,
+            decoded: `[IDENTIFICAÇÃO] ${item.label}: OK`,
+            tag: 'STATUS',
+          });
+        } else {
+          this.onPacketLog({
+            id: Math.random().toString(36).substring(2, 9),
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'error',
+            raw: `FAIL: ${item.cmd}`,
+            decoded: `[IDENTIFICAÇÃO] ${item.label}: TIMEOUT / SEM RESPOSTA ESPERADA`,
+            tag: 'STATUS',
+          });
+        }
+        await sleep(100);
+      }
     }
 
     // 2. CONSULTA DE DTCs HARLEY (6C 10/40/60 F1 19 52 FF 00)
     // Nó 0x10 = ECM (DTC Histórico)
-    this.onStatusChange('Lendo DTCs da ECM (Histórico - Nó 0x10)...');
-    await this.chat('ATSH 6C 10 F1', 'OK', 500);
-    await this.chat('19 52 FF 00', '6CF11059', 2000);
+    this.onStatusChange('Configurando cabeçalho ECM DTC (ATSH 6C 10 F1)...');
+    const hDtc10 = await this.chat('ATSH 6C 10 F1', 'OK', 500);
+    if (!hDtc10.success) {
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'error',
+        raw: 'ATSH 6C 10 F1 FAIL',
+        decoded: 'Erro ao configurar cabeçalho ATSH 6C 10 F1 para consulta de DTCs da ECM.',
+        tag: 'AT',
+      });
+    } else {
+      this.onStatusChange('Lendo DTCs da ECM (Histórico - Nó 0x10)...');
+      const resDtc10 = await this.chat('19 52 FF 00', '6CF11059', 2000);
+      if (resDtc10.success) {
+        dtcSuccessCount++;
+        this.onPacketLog({
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'rx',
+          raw: resDtc10.reply.trim() || '19 52 FF 00',
+          decoded: '[DTC] Consulta Nó 0x10 (ECM): OK',
+          tag: 'DTC',
+        });
+      } else {
+        this.onPacketLog({
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'error',
+          raw: 'FAIL: 19 52 FF 00 (0x10)',
+          decoded: '[DTC] Consulta Nó 0x10 (ECM): TIMEOUT / SEM RESPOSTA',
+          tag: 'DTC',
+        });
+      }
+    }
     await sleep(150);
 
     // Nó 0x40 = BCM / TSM (DTC Atual)
-    this.onStatusChange('Lendo DTCs do BCM/TSM (Atuais - Nó 0x40)...');
-    await this.chat('ATSH 6C 40 F1', 'OK', 500);
-    await this.chat('19 52 FF 00', '6CF14059', 2000);
+    this.onStatusChange('Configurando cabeçalho BCM/TSM DTC (ATSH 6C 40 F1)...');
+    const hDtc40 = await this.chat('ATSH 6C 40 F1', 'OK', 500);
+    if (!hDtc40.success) {
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'error',
+        raw: 'ATSH 6C 40 F1 FAIL',
+        decoded: 'Erro ao configurar cabeçalho ATSH 6C 40 F1 para consulta de DTCs do BCM/TSM.',
+        tag: 'AT',
+      });
+    } else {
+      this.onStatusChange('Lendo DTCs do BCM/TSM (Atuais - Nó 0x40)...');
+      const resDtc40 = await this.chat('19 52 FF 00', '6CF14059', 2000);
+      if (resDtc40.success) {
+        dtcSuccessCount++;
+        this.onPacketLog({
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'rx',
+          raw: resDtc40.reply.trim() || '19 52 FF 00',
+          decoded: '[DTC] Consulta Nó 0x40 (BCM/TSM): OK',
+          tag: 'DTC',
+        });
+      } else {
+        this.onPacketLog({
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'error',
+          raw: 'FAIL: 19 52 FF 00 (0x40)',
+          decoded: '[DTC] Consulta Nó 0x40 (BCM/TSM): TIMEOUT / SEM RESPOSTA',
+          tag: 'DTC',
+        });
+      }
+    }
     await sleep(150);
 
     // Nó 0x60 = Velocímetro (DTCs do Painel)
-    this.onStatusChange('Lendo DTCs do Velocímetro (Nó 0x60)...');
-    await this.chat('ATSH 6C 60 F1', 'OK', 500);
-    await this.chat('19 52 FF 00', '6CF16059', 2000);
+    this.onStatusChange('Configurando cabeçalho Velocímetro DTC (ATSH 6C 60 F1)...');
+    const hDtc60 = await this.chat('ATSH 6C 60 F1', 'OK', 500);
+    if (!hDtc60.success) {
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'error',
+        raw: 'ATSH 6C 60 F1 FAIL',
+        decoded: 'Erro ao configurar cabeçalho ATSH 6C 60 F1 para consulta de DTCs do Velocímetro.',
+        tag: 'AT',
+      });
+    } else {
+      this.onStatusChange('Lendo DTCs do Velocímetro (Nó 0x60)...');
+      const resDtc60 = await this.chat('19 52 FF 00', '6CF16059', 2000);
+      if (resDtc60.success) {
+        dtcSuccessCount++;
+        this.onPacketLog({
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'rx',
+          raw: resDtc60.reply.trim() || '19 52 FF 00',
+          decoded: '[DTC] Consulta Nó 0x60 (Velocímetro): OK',
+          tag: 'DTC',
+        });
+      } else {
+        this.onPacketLog({
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'error',
+          raw: 'FAIL: 19 52 FF 00 (0x60)',
+          decoded: '[DTC] Consulta Nó 0x60 (Velocímetro): TIMEOUT / SEM RESPOSTA',
+          tag: 'DTC',
+        });
+      }
+    }
     await sleep(150);
 
-    this.onStatusChange('Varredura de diagnóstico Harley J1850 concluída!');
+    // 3. Resumo Final da Varredura
+    const totalSuccess = idSuccessCount + dtcSuccessCount;
+    const totalExpected = totalIdQueries + totalDtcQueries;
+
+    if (totalSuccess === totalExpected) {
+      const summaryMsg = 'Diagnóstico concluído: todas as consultas responderam.';
+      this.onStatusChange(summaryMsg);
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'rx',
+        raw: 'DIAG_COMPLETE',
+        decoded: `[RESUMO DIAGNÓSTICO] ${summaryMsg} (Identificação: ${idSuccessCount}/${totalIdQueries} | DTCs: ${dtcSuccessCount}/${totalDtcQueries} módulos)`,
+        tag: 'STATUS',
+      });
+    } else {
+      const summaryMsg = `Diagnóstico concluído com respostas parciais: ${totalSuccess}/${totalExpected} consultas responderam (Identificação: ${idSuccessCount}/${totalIdQueries}, DTCs: ${dtcSuccessCount}/${totalDtcQueries} módulos).`;
+      this.onStatusChange(summaryMsg);
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'info',
+        raw: 'DIAG_PARTIAL',
+        decoded: `[RESUMO DIAGNÓSTICO] ${summaryMsg}`,
+        tag: 'STATUS',
+      });
+    }
 
     // Restaura monitoramento de painel em tempo real
     await this.resumeLiveDashboard();

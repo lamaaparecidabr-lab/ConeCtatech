@@ -589,19 +589,30 @@ export class J1850Decoder {
 
       const matchKey = `6cf1${node}59`;
       const idx = cleanHex.indexOf(matchKey);
-      const payloadHex = cleanHex.substring(idx + 8);
-      const payloadBytes = this.hexStringToBytes(payloadHex);
+      const frameHex = cleanHex.substring(idx);
+      const frameBytes = this.hexStringToBytes(frameHex);
 
-      const parsedCodes: string[] = [];
-      // Se houver um byte ímpar no final, trata-se do byte de CRC do frame J1850 (não faz parte do DTC)
-      if (payloadBytes.length % 2 !== 0) {
-        payloadBytes.pop();
+      // Validação formal do CRC J1850 VPW sobre o frame completo recebido
+      // Header (3 bytes: 6C F1 NODE) + Service (1 byte: 59) = 4 bytes mínimos.
+      // Se houver pelo menos 5 bytes e o frame passar na validação de CRC J1850, o último byte é o checksum confirmado.
+      let hasValidCrc = false;
+      if (frameBytes.length >= 5) {
+        hasValidCrc = validateJ1850Crc(frameBytes) ||
+          computeJ1850Crc(frameBytes.slice(0, -1)) === frameBytes[frameBytes.length - 1];
       }
 
+      // SOMENTE se o frame completo passar na validação CRC J1850, remove o último byte (checksum).
+      // Se não houver CRC validável, NÃO removemos arbitrariamente o último byte (pode ser byte de DTC legítimo).
+      const dataBytes = hasValidCrc
+        ? frameBytes.slice(4, frameBytes.length - 1)
+        : frameBytes.slice(4);
+
+      const parsedCodes: string[] = [];
+
       // Cada código DTC Harley é rigorosamente composto por 2 bytes (HarleyDroid in[4], in[5])
-      for (let i = 0; i + 1 < payloadBytes.length; i += 2) {
-        const b0 = payloadBytes[i];
-        const b1 = payloadBytes[i + 1];
+      for (let i = 0; i + 1 < dataBytes.length; i += 2) {
+        const b0 = dataBytes[i];
+        const b1 = dataBytes[i + 1];
 
         // Se ambos forem 0x00 ou 0xFF, indica ausência de falha / preenchimento
         if ((b0 === 0 && b1 === 0) || (b0 === 0xff && b1 === 0xff)) continue;
@@ -643,7 +654,7 @@ export class J1850Decoder {
         timestamp: new Date().toLocaleTimeString(),
         type: 'rx',
         raw: originalLine,
-        decoded: `Harley J1850 DTCs (${isHistoric ? 'Históricos' : 'Atuais'} - Nó 0x${node}): ${
+        decoded: `Harley J1850 DTCs (${isHistoric ? 'Históricos' : 'Atuais'} - Nó 0x${node}${hasValidCrc ? ' [CRC J1850 Válido]' : ''}): ${
           parsedCodes.length > 0 ? parsedCodes.join(', ') : 'Nenhuma falha gravada [OK]'
         }`,
         tag: 'DTC',
