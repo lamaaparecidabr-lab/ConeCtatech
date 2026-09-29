@@ -572,12 +572,12 @@ export class ELM327Connection {
     };
 
     try {
-      // 1. ATZ (Reset) - aguarda resposta contendo ELM327 ou resposta válida
+      // 1. ATZ (Reset) - aguarda conteúdo real de identificação (ELM, STN, OBD) sem aceitar '>' isolado
       this.onStatusChange('Resetando ELM327 (ATZ)...');
-      const rAtz = await this.chat('ATZ', 'ELM|327|OK|>', 2500);
+      const rAtz = await this.chat('ATZ', 'ELM|STN|OBD', 2500);
       if (!rAtz.success) {
         logHandshakeFailure('ATZ', rAtz.reply);
-        throw new Error('ELM327 não respondeu ao comando ATZ. Verifique se o adaptador está energizado e pareado.');
+        throw new Error('ELM327 não respondeu com identificação válida ao comando ATZ. Verifique se o adaptador está energizado e pareado.');
       }
       logHandshakeSuccess('ATZ', rAtz.reply.trim().replace(/[\r\n]+/g, ' '));
       await sleep(150);
@@ -633,14 +633,14 @@ export class ELM327Connection {
       logHandshakeSuccess(protoCmd, 'OK');
       await sleep(150);
 
-      // 7. ATRV (Tensão da bateria)
+      // 7. ATRV (Tensão da bateria) - validação explícita de tensão numérica real (\d+(?:\.\d+)?\s*V)
       this.onStatusChange('Lendo tensão de alimentação (ATRV)...');
-      const rAtrv = await this.chat('ATRV', 'V|>', 1200);
+      const rAtrv = await this.chat('ATRV', /\d+(?:\.\d+)?\s*V/i, 1200);
       if (!rAtrv.success) {
         logHandshakeFailure('ATRV', rAtrv.reply);
-        throw new Error('ELM327 não respondeu à leitura de tensão ATRV.');
+        throw new Error('ELM327 não respondeu com valor numérico de tensão válido ao comando ATRV.');
       }
-      const voltMatch = rAtrv.reply.match(/(\d+\.?\d*)\s*V?/i);
+      const voltMatch = rAtrv.reply.match(/(\d+(?:\.\d+)?)\s*V?/i);
       const voltStr = voltMatch ? `${voltMatch[1]}V` : rAtrv.reply.trim();
       logHandshakeSuccess('ATRV', voltStr);
       await sleep(150);
@@ -719,19 +719,27 @@ export class ELM327Connection {
   /**
    * Mecanismo chat(send, expect, timeout) equivalente ao HarleyDroid
    * Transmite comando e aguarda resposta esperada antes de prosseguir
-   * Suporta tokens alternativos via separador '|' (ex: "ELM|327|OK|>")
+   * Suporta tokens alternativos via separador '|' (ex: "ELM|STN|OBD") ou RegExp explícita (ex: /\d+(?:\.\d+)?\s*V/i)
    */
-  public async chat(cmd: string, expect: string, timeoutMs: number = 800): Promise<{ success: boolean; reply: string }> {
+  public async chat(cmd: string, expect: string | RegExp, timeoutMs: number = 800): Promise<{ success: boolean; reply: string }> {
     return new Promise(async (resolve) => {
       let resolved = false;
       let replyAccum = '';
-      const cleanExpect = expect.replace(/[\s:]+/g, '').toUpperCase();
+      const isRegex = expect instanceof RegExp;
+      const cleanExpect = isRegex ? '' : expect.replace(/[\s:]+/g, '').toUpperCase();
+      const expectLabel = isRegex ? expect.toString() : expect;
 
       const listener = (line: string) => {
         replyAccum += line + '\n';
-        const cleanReply = replyAccum.replace(/[\s:]+/g, '').toUpperCase();
-        const matches = cleanExpect.split('|').some((token) => token && cleanReply.includes(token));
-        if (cleanExpect && matches) {
+        let matches = false;
+        if (isRegex) {
+          matches = (expect as RegExp).test(replyAccum);
+        } else {
+          const cleanReply = replyAccum.replace(/[\s:]+/g, '').toUpperCase();
+          matches = cleanExpect.split('|').some((token) => token && cleanReply.includes(token));
+        }
+
+        if (matches) {
           if (!resolved) {
             resolved = true;
             cleanup();
@@ -759,7 +767,7 @@ export class ELM327Connection {
             timestamp: new Date().toLocaleTimeString(),
             type: 'error',
             raw: `TIMEOUT: ${cmd}`,
-            decoded: `Timeout aguardando "${expect}" para o comando "${cmd}" (${timeoutMs}ms). Resposta obtida: ${replyAccum.trim() || 'NENHUMA'}`,
+            decoded: `Timeout aguardando "${expectLabel}" para o comando "${cmd}" (${timeoutMs}ms). Resposta obtida: ${replyAccum.trim() || 'NENHUMA'}`,
             tag: 'AT',
           });
           resolve({ success: false, reply: replyAccum });
