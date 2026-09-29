@@ -1,6 +1,41 @@
 import { ConnectionConfig, ConnectionType, PacketLog, TelemetryData } from '../types';
 import { J1850Decoder } from './j1850Decoder';
 
+/**
+ * Converte bytes brutos em string hexadecimal formatada (ex: "41 54 5A 0D")
+ */
+function formatBytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0').toUpperCase())
+    .join(' ');
+}
+
+/**
+ * Converte bytes brutos em representação ASCII segura (exibe caracteres legíveis e escapa controles)
+ */
+function formatBytesToSafeAscii(bytes: Uint8Array): string {
+  let res = '';
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i];
+    if (b === 0x0d) res += '\\r';
+    else if (b === 0x0a) res += '\\n';
+    else if (b === 0x09) res += '\\t';
+    else if (b >= 32 && b <= 126) res += String.fromCharCode(b);
+    else res += `\\x${b.toString(16).padStart(2, '0').toUpperCase()}`;
+  }
+  return res;
+}
+
+/**
+ * Lista de UUIDs de serviços GATT BLE conhecidos para adaptadores OBD2 (ELM327 / STN / clones)
+ * 
+ * NOTA DE ARQUITETURA (Bluetooth Classic/SPP vs BLE GATT):
+ * O UUID '00001101-0000-1000-8000-00805f9b34fb' refere-se ao perfil Serial Port Profile (SPP)
+ * clássico do Bluetooth 2.0/2.1 (RFCOMM). A Web Bluetooth API opera estritamente sobre
+ * Bluetooth Low Energy (BLE) / GATT. Alguns adaptadores BLE expõem um serviço GATT customizado
+ * usando o UUID do SPP de 16-bits mapeado na base Bluetooth, mas a comunicação real é sempre
+ * via Characteristics GATT (leitura/escrita/notificações), não sockets RFCOMM de porta serial.
+ */
 const BLE_SERVICE_UUIDS = [
   '0000ffe0-0000-1000-8000-00805f9b34fb', // Standard BLE OBD (HM-10, CC2541, Viecar, Vgate)
   '0000fff0-0000-1000-8000-00805f9b34fb', // Chinese BLE OBD clones
@@ -14,7 +49,10 @@ const BLE_SERVICE_UUIDS = [
   '0000ae00-0000-1000-8000-00805f9b34fb',
   '0000ae30-0000-1000-8000-00805f9b34fb',
   '5038a328-9d82-4113-8835-12cf51876970',
-  '00001101-0000-1000-8000-00805f9b34fb', // SPP Serial
+  'bef8d6c9-9c21-4c9e-b632-bd58c1009f9f', // Carista OBD BLE
+  '0000fff9-0000-1000-8000-00805f9b34fb',
+  '0000ff90-0000-1000-8000-00805f9b34fb',
+  '00001101-0000-1000-8000-00805f9b34fb', // SPP Serial (Classic 16-bit UUID mapeado em base GATT)
 ];
 
 export class ELM327Connection {
@@ -23,11 +61,25 @@ export class ELM327Connection {
   private textDecoder = new TextDecoder('utf-8');
   private textEncoder = new TextEncoder();
 
-  // Bluetooth objects
+  // Bluetooth objects com separação estrita de TX e RX
   private bluetoothDevice: any = null;
   private gattServer: any = null;
-  private txCharacteristic: any = null;
-  private rxCharacteristic: any = null;
+  private bluetoothTxCharacteristic: any = null;
+  private bluetoothRxCharacteristic: any = null;
+
+  // Aliases para compatibilidade interna
+  private get txCharacteristic(): any {
+    return this.bluetoothTxCharacteristic;
+  }
+  private set txCharacteristic(c: any) {
+    this.bluetoothTxCharacteristic = c;
+  }
+  private get rxCharacteristic(): any {
+    return this.bluetoothRxCharacteristic;
+  }
+  private set rxCharacteristic(c: any) {
+    this.bluetoothRxCharacteristic = c;
+  }
 
   // Active polling timer for real hardware fallback
   private pollTimer: any = null;
@@ -108,10 +160,24 @@ export class ELM327Connection {
 
   /**
    * Helper to write to BLE characteristic handling writeWithoutResponse / writeWithResponse
+   * Registra imediatamente antes da transmissão o pacote em nível de byte bruto: [BLE-TX-RAW]
    */
   private async writeBleCharacteristic(char: any, data: Uint8Array): Promise<void> {
     if (!char) throw new Error('Característica BLE de envio não disponível');
     const props = char.properties || {};
+
+    const hexStr = formatBytesToHex(data);
+    const asciiStr = formatBytesToSafeAscii(data);
+
+    // [BLE-TX-RAW] OBRIGATÓRIO: emitido imediatamente antes da escrita no canal BLE
+    this.onPacketLog({
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toLocaleTimeString(),
+      type: 'tx',
+      raw: hexStr,
+      decoded: `[BLE-TX-RAW] HEX: ${hexStr} | ASCII: ${asciiStr}`,
+      tag: 'AT',
+    });
 
     try {
       if (props.writeWithoutResponse && typeof char.writeValueWithoutResponse === 'function') {
@@ -135,7 +201,8 @@ export class ELM327Connection {
   }
 
   /**
-   * Connect via Web Bluetooth API (BLE OBD2 adapters / SPP)
+   * Connect via Web Bluetooth API (BLE OBD2 adapters)
+   * Instrumentação completa de enumeração GATT, separação TX/RX e ativação segura de notificações
    */
   public async connectBluetooth(config: ConnectionConfig): Promise<boolean> {
     if (!('bluetooth' in navigator)) {
@@ -159,66 +226,258 @@ export class ELM327Connection {
         this.disconnect();
       });
 
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'info',
+        raw: 'BLE_CONNECTING',
+        decoded: `[BLE] Conectando ao GATT Server de "${device.name || 'Dispositivo'}" (ID: ${device.id || 'N/A'})...`,
+        tag: 'AT',
+      });
+
       this.gattServer = await device.gatt.connect();
-      this.onStatusChange('Descobrindo canais de comunicação OBD...');
+      this.onStatusChange('Bluetooth conectado! Descobrindo serviços e characteristics GATT...');
 
-      let targetService: any = null;
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'info',
+        raw: 'BLE_CONNECTED',
+        decoded: `[BLE] Bluetooth conectado ao GATT Server. Iniciando enumeração de serviços...`,
+        tag: 'AT',
+      });
+
+      // 1. Enumeração dos Serviços Primários
+      const discoveredServices: any[] = [];
+      try {
+        const allServices = await this.gattServer.getPrimaryServices();
+        if (allServices && allServices.length > 0) {
+          discoveredServices.push(...allServices);
+        }
+      } catch (e) {
+        console.warn('getPrimaryServices() não retornou lista geral:', e);
+      }
+
+      // Complementa com busca individual caso a lista geral não tenha retornado todos os serviços
       for (const uuid of BLE_SERVICE_UUIDS) {
-        try {
-          targetService = await this.gattServer.getPrimaryService(uuid);
-          if (targetService) break;
-        } catch {
-          // Continue searching next service UUID
-        }
-      }
-
-      if (!targetService) {
-        try {
-          const services = await this.gattServer.getPrimaryServices();
-          if (services && services.length > 0) {
-            targetService = services[0];
+        if (!discoveredServices.some((s) => s.uuid.toLowerCase() === uuid.toLowerCase())) {
+          try {
+            const s = await this.gattServer.getPrimaryService(uuid);
+            if (s) discoveredServices.push(s);
+          } catch {
+            // UUID não disponível no adaptador
           }
-        } catch {
-          // ignore
         }
       }
 
-      if (!targetService) {
-        throw new Error('Nenhum canal BLE compatível encontrado. Se for ELM327 Bluetooth clássico v2.1, conecte via "Serial USB / COM".');
+      if (discoveredServices.length === 0) {
+        throw new Error('Nenhum serviço GATT encontrado no adaptador. Se for Bluetooth Classic v2.1 (não-BLE), conecte via "Serial USB / COM".');
       }
 
-      const characteristics = await targetService.getCharacteristics();
-      if (characteristics.length === 0) {
-        throw new Error('Nenhum canal de envio/recepção serial encontrado no adaptador.');
+      // 2. Enumeração completa de todas as Characteristics disponíveis
+      interface DiscoveredChar {
+        service: any;
+        char: any;
+        serviceUuid: string;
+        charUuid: string;
+        properties: {
+          read: boolean;
+          write: boolean;
+          writeWithoutResponse: boolean;
+          notify: boolean;
+          indicate: boolean;
+        };
       }
 
-      this.txCharacteristic = null;
-      this.rxCharacteristic = null;
+      const allDiscoveredChars: DiscoveredChar[] = [];
 
-      for (const char of characteristics) {
-        const props = char.properties || {};
-        if (props.notify || props.indicate) {
-          this.rxCharacteristic = char;
+      for (const service of discoveredServices) {
+        try {
+          const chars = await service.getCharacteristics();
+          for (const char of chars) {
+            const props = char.properties || {};
+            const item: DiscoveredChar = {
+              service,
+              char,
+              serviceUuid: service.uuid,
+              charUuid: char.uuid,
+              properties: {
+                read: !!props.read,
+                write: !!props.write,
+                writeWithoutResponse: !!props.writeWithoutResponse,
+                notify: !!props.notify,
+                indicate: !!props.indicate,
+              },
+            };
+            allDiscoveredChars.push(item);
+
+            // [BLE-GATT] Log individual de auditoria
+            this.onPacketLog({
+              id: Math.random().toString(36).substring(2, 9),
+              timestamp: new Date().toLocaleTimeString(),
+              type: 'info',
+              raw: `GATT: ${service.uuid} -> ${char.uuid}`,
+              decoded: `[BLE-GATT] Service: ${service.uuid}\n[BLE-GATT] Characteristic: ${char.uuid}\n[BLE-GATT] properties:\nread=${item.properties.read}\nwrite=${item.properties.write}\nwriteWithoutResponse=${item.properties.writeWithoutResponse}\nnotify=${item.properties.notify}\nindicate=${item.properties.indicate}`,
+              tag: 'AT',
+            });
+          }
+        } catch (e: any) {
+          console.warn(`Erro ao ler characteristics do serviço ${service.uuid}:`, e);
         }
-        if (props.write || props.writeWithoutResponse) {
-          this.txCharacteristic = char;
+      }
+
+      if (allDiscoveredChars.length === 0) {
+        throw new Error('Nenhuma characteristic encontrada nos serviços GATT do adaptador.');
+      }
+
+      // 3. Seleção explícita de TX e RX
+      // TX precisa de: write OU writeWithoutResponse
+      // RX precisa de: notify OU indicate
+      this.bluetoothTxCharacteristic = null;
+      this.bluetoothRxCharacteristic = null;
+
+      // Prioridade 1: Characteristic com capacidade simultânea de Write e Notify/Indicate (ex: HM-10 FFE1)
+      const bidirCandidate = allDiscoveredChars.find(
+        (c) => (c.properties.write || c.properties.writeWithoutResponse) &&
+               (c.properties.notify || c.properties.indicate)
+      );
+
+      let selectedTxItem: DiscoveredChar | null = null;
+      let selectedRxItem: DiscoveredChar | null = null;
+
+      if (bidirCandidate) {
+        selectedTxItem = bidirCandidate;
+        selectedRxItem = bidirCandidate;
+      } else {
+        // Prioridade 2: Par TX e RX no mesmo serviço (ex: Nordic UART 6e400002 TX e 6e400003 RX)
+        for (const s of discoveredServices) {
+          const sChars = allDiscoveredChars.filter((c) => c.serviceUuid === s.uuid);
+          const sTx = sChars.find((c) => c.properties.write || c.properties.writeWithoutResponse);
+          const sRx = sChars.find((c) => c.properties.notify || c.properties.indicate);
+          if (sTx && sRx) {
+            selectedTxItem = sTx;
+            selectedRxItem = sRx;
+            break;
+          }
+        }
+
+        // Prioridade 3: Qualquer TX e RX válidos no dispositivo
+        if (!selectedTxItem) {
+          selectedTxItem = allDiscoveredChars.find((c) => c.properties.write || c.properties.writeWithoutResponse) || null;
+        }
+        if (!selectedRxItem) {
+          selectedRxItem = allDiscoveredChars.find((c) => c.properties.notify || c.properties.indicate) || null;
         }
       }
 
-      if (!this.txCharacteristic) this.txCharacteristic = characteristics[0];
-      if (!this.rxCharacteristic) this.rxCharacteristic = characteristics.length > 1 ? characteristics[1] : characteristics[0];
+      // Validação das characteristics selecionadas
+      if (!selectedTxItem) {
+        this.onPacketLog({
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'error',
+          raw: 'BLE_NO_TX',
+          decoded: '[BLE] Erro fatal: Nenhuma characteristic TX com write/writeWithoutResponse encontrada no adaptador.',
+          tag: 'AT',
+        });
+        throw new Error('Bluetooth conectado, mas nenhuma characteristic TX com suporte a escrita foi encontrada.');
+      }
 
-      if (this.rxCharacteristic && (this.rxCharacteristic.properties?.notify || this.rxCharacteristic.properties?.indicate)) {
-        await this.rxCharacteristic.startNotifications();
-        this.rxCharacteristic.addEventListener(
-          'characteristicvaluechanged',
-          (event: any) => this.handleIncomingData(event.target.value)
-        );
+      if (!selectedRxItem) {
+        this.onPacketLog({
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'error',
+          raw: 'BLE_NO_RX',
+          decoded: '[BLE] Erro fatal: Bluetooth conectado, mas nenhuma characteristic RX Notify/Indicate foi encontrada.',
+          tag: 'AT',
+        });
+        throw new Error('Bluetooth conectado, mas nenhuma characteristic RX Notify/Indicate foi encontrada.');
+      }
+
+      this.bluetoothTxCharacteristic = selectedTxItem.char;
+      this.bluetoothRxCharacteristic = selectedRxItem.char;
+
+      // [BLE] Log da instrumentação da escolha
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'info',
+        raw: 'BLE_SELECTION',
+        decoded: `[BLE] TX characteristic selecionada: ${selectedTxItem.charUuid} (Service: ${selectedTxItem.serviceUuid}, write=${selectedTxItem.properties.write}, writeWithoutResponse=${selectedTxItem.properties.writeWithoutResponse})\n[BLE] RX characteristic selecionada: ${selectedRxItem.charUuid} (Service: ${selectedRxItem.serviceUuid}, notify=${selectedRxItem.properties.notify}, indicate=${selectedRxItem.properties.indicate})`,
+        tag: 'AT',
+      });
+
+      // 4. Ativação correta do canal RX:
+      // a) Registrar listener 'characteristicvaluechanged' ANTES de iniciar comandos
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'info',
+        raw: 'BLE_LISTENER_REGISTER',
+        decoded: `[BLE] Listener RX registrado na characteristic ${selectedRxItem.charUuid}`,
+        tag: 'AT',
+      });
+
+      this.bluetoothRxCharacteristic.addEventListener(
+        'characteristicvaluechanged',
+        (event: any) => {
+          const valueView = event.target.value as DataView;
+          if (!valueView) return;
+          const rawBytes = new Uint8Array(valueView.buffer, valueView.byteOffset, valueView.byteLength);
+          const hexStr = formatBytesToHex(rawBytes);
+          const asciiStr = formatBytesToSafeAscii(rawBytes);
+
+          // [BLE-RX-RAW] OBRIGATÓRIO: emitido antes de qualquer parser ou buffer
+          this.onPacketLog({
+            id: Math.random().toString(36).substring(2, 9),
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'rx',
+            raw: hexStr,
+            decoded: `[BLE-RX-RAW] HEX: ${hexStr} | ASCII: ${asciiStr}`,
+            tag: 'AT',
+          });
+
+          this.handleIncomingData(rawBytes);
+        }
+      );
+
+      // b) Iniciar notificações na characteristic RX
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'info',
+        raw: 'BLE_START_NOTIFY_REQ',
+        decoded: `[BLE] startNotifications() solicitado na characteristic ${selectedRxItem.charUuid}`,
+        tag: 'AT',
+      });
+
+      try {
+        await this.bluetoothRxCharacteristic.startNotifications();
+        this.onPacketLog({
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'info',
+          raw: 'BLE_NOTIFY_ACTIVE',
+          decoded: `[BLE] RX notifications ATIVADAS com sucesso na characteristic ${selectedRxItem.charUuid}`,
+          tag: 'AT',
+        });
+      } catch (notifyErr: any) {
+        this.onPacketLog({
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'error',
+          raw: 'BLE_NOTIFY_FAIL',
+          decoded: `[BLE] Falha ao ativar startNotifications(): ${notifyErr.message || notifyErr}`,
+          tag: 'AT',
+        });
+        throw new Error(`Falha ao ativar notificações RX no adaptador Bluetooth: ${notifyErr.message || notifyErr}`);
       }
 
       this.connectionType = 'bluetooth';
-      this.onStatusChange('Conectado via Bluetooth! Configurando ELM327 para Harley J1850...');
+      this.onStatusChange('Bluetooth pronto! Executando handshake ELM327...');
 
+      // 5. Handshake ELM327 dirigido por resposta (valida ATZ, ATE0, etc.)
       await this.initializeELM327(config);
       return true;
     } catch (err: any) {
@@ -283,48 +542,131 @@ export class ELM327Connection {
   }
 
   /**
-   * Send AT initialization commands sequence to ELM327
+   * Send AT initialization commands sequence to ELM327 dirigido por resposta (Handshake validado)
+   * Substitui sleeps cegos por validação de resposta via chat(). Não permite ATMA se houver falha.
    */
   public async initializeELM327(config: ConnectionConfig) {
     this.activeConfig = config;
     const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
+    const logHandshakeSuccess = (cmd: string, detail: string) => {
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'rx',
+        raw: detail,
+        decoded: `[ELM-HANDSHAKE] ${cmd}: OK${detail ? ` (${detail})` : ''}`,
+        tag: 'AT',
+      });
+    };
+
+    const logHandshakeFailure = (cmd: string, reply: string) => {
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'error',
+        raw: `FAIL: ${cmd}`,
+        decoded: `[ELM-HANDSHAKE] ${cmd}: TIMEOUT / SEM RESPOSTA VÁLIDA. Resposta obtida: ${reply.trim() || 'NENHUMA'}`,
+        tag: 'AT',
+      });
+    };
+
     try {
+      // 1. ATZ (Reset) - aguarda resposta contendo ELM327 ou resposta válida
       this.onStatusChange('Resetando ELM327 (ATZ)...');
-      await this.sendCommand('ATZ');
-      await sleep(1000);
+      const rAtz = await this.chat('ATZ', 'ELM|327|OK|>', 2500);
+      if (!rAtz.success) {
+        logHandshakeFailure('ATZ', rAtz.reply);
+        throw new Error('ELM327 não respondeu ao comando ATZ. Verifique se o adaptador está energizado e pareado.');
+      }
+      logHandshakeSuccess('ATZ', rAtz.reply.trim().replace(/[\r\n]+/g, ' '));
+      await sleep(150);
 
-      this.onStatusChange('Configurando ELM327 (ATE0, ATL0, ATS0, ATH1)...');
-      await this.sendCommand('ATE0'); // Echo OFF
-      await sleep(200);
-      await this.sendCommand('ATL0'); // Linefeeds OFF
-      await sleep(200);
-      await this.sendCommand('ATS0'); // Spaces OFF
-      await sleep(200);
+      // 2. ATE0 (Echo OFF)
+      this.onStatusChange('Configurando Echo OFF (ATE0)...');
+      const rAte0 = await this.chat('ATE0', 'OK', 1000);
+      if (!rAte0.success) {
+        logHandshakeFailure('ATE0', rAte0.reply);
+        throw new Error('ELM327 não respondeu com OK ao comando ATE0.');
+      }
+      logHandshakeSuccess('ATE0', 'OK');
+      await sleep(100);
 
-      // AT H1 is CRITICAL for Harley J1850 VPW to preserve message headers
-      await this.sendCommand('ATH1');
-      await sleep(200);
+      // 3. ATL0 (Linefeeds OFF)
+      this.onStatusChange('Configurando Linefeeds OFF (ATL0)...');
+      const rAtl0 = await this.chat('ATL0', 'OK', 1000);
+      if (!rAtl0.success) {
+        logHandshakeFailure('ATL0', rAtl0.reply);
+        throw new Error('ELM327 não respondeu com OK ao comando ATL0.');
+      }
+      logHandshakeSuccess('ATL0', 'OK');
+      await sleep(100);
 
-      // Protocol selection (ATSP2 = SAE J1850 VPW for Harley Davidson)
-      this.onStatusChange(`Definindo protocolo ${config.protocol} (Harley J1850 VPW)...`);
-      await this.sendCommand(config.protocol);
-      await sleep(400);
+      // 4. ATS0 (Spaces OFF)
+      this.onStatusChange('Configurando Spaces OFF (ATS0)...');
+      const rAts0 = await this.chat('ATS0', 'OK', 1000);
+      if (!rAts0.success) {
+        logHandshakeFailure('ATS0', rAts0.reply);
+        throw new Error('ELM327 não respondeu com OK ao comando ATS0.');
+      }
+      logHandshakeSuccess('ATS0', 'OK');
+      await sleep(100);
 
-      // Check battery voltage
-      await this.sendCommand('ATRV');
-      await sleep(300);
+      // 5. ATH1 (Headers ON) - CRÍTICO para Harley J1850 VPW
+      this.onStatusChange('Ativando Headers J1850 (ATH1)...');
+      const rAth1 = await this.chat('ATH1', 'OK', 1000);
+      if (!rAth1.success) {
+        logHandshakeFailure('ATH1', rAth1.reply);
+        throw new Error('ELM327 não respondeu com OK ao comando ATH1 (Headers ON).');
+      }
+      logHandshakeSuccess('ATH1', 'OK');
+      await sleep(100);
 
+      // 6. Protocolo J1850 (ATSP2)
+      const protoCmd = config.protocol || 'ATSP2';
+      this.onStatusChange(`Definindo protocolo ${protoCmd} (Harley J1850 VPW)...`);
+      const rProto = await this.chat(protoCmd, 'OK', 1200);
+      if (!rProto.success) {
+        logHandshakeFailure(protoCmd, rProto.reply);
+        throw new Error(`ELM327 não aceitou o protocolo ${protoCmd}.`);
+      }
+      logHandshakeSuccess(protoCmd, 'OK');
+      await sleep(150);
+
+      // 7. ATRV (Tensão da bateria)
+      this.onStatusChange('Lendo tensão de alimentação (ATRV)...');
+      const rAtrv = await this.chat('ATRV', 'V|>', 1200);
+      if (!rAtrv.success) {
+        logHandshakeFailure('ATRV', rAtrv.reply);
+        throw new Error('ELM327 não respondeu à leitura de tensão ATRV.');
+      }
+      const voltMatch = rAtrv.reply.match(/(\d+\.?\d*)\s*V?/i);
+      const voltStr = voltMatch ? `${voltMatch[1]}V` : rAtrv.reply.trim();
+      logHandshakeSuccess('ATRV', voltStr);
+      await sleep(150);
+
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'info',
+        raw: 'ELM_READY',
+        decoded: '[ELM-HANDSHAKE] Handshake concluído com sucesso! Protocolo Harley J1850 ativo.',
+        tag: 'AT',
+      });
+
+      // 8. Ativação do modo Live (ATMA ou Polling)
       if (config.monitorMode) {
         this.stopActivePolling();
         this.onStatusChange('Ativando Monitor J1850 contínuo (ATMA)...');
         await this.sendCommand('ATMA');
+        this.onStatusChange('Painel Harley-Davidson Ativo (ATMA)!');
       } else {
         this.onStatusChange('Conectado ao ELM327! Modo Harley J1850 Ativo...');
         this.startActivePolling();
       }
     } catch (err: any) {
-      this.onStatusChange(`Aviso durante inicialização: ${err.message || err}`);
+      this.onStatusChange(`Falha na inicialização do ELM327: ${err.message || err}`, true);
+      throw err;
     }
   }
 
@@ -377,6 +719,7 @@ export class ELM327Connection {
   /**
    * Mecanismo chat(send, expect, timeout) equivalente ao HarleyDroid
    * Transmite comando e aguarda resposta esperada antes de prosseguir
+   * Suporta tokens alternativos via separador '|' (ex: "ELM|327|OK|>")
    */
   public async chat(cmd: string, expect: string, timeoutMs: number = 800): Promise<{ success: boolean; reply: string }> {
     return new Promise(async (resolve) => {
@@ -387,7 +730,8 @@ export class ELM327Connection {
       const listener = (line: string) => {
         replyAccum += line + '\n';
         const cleanReply = replyAccum.replace(/[\s:]+/g, '').toUpperCase();
-        if (cleanExpect && cleanReply.includes(cleanExpect)) {
+        const matches = cleanExpect.split('|').some((token) => token && cleanReply.includes(token));
+        if (cleanExpect && matches) {
           if (!resolved) {
             resolved = true;
             cleanup();
@@ -767,12 +1111,26 @@ export class ELM327Connection {
    * Process raw byte chunks coming from Bluetooth, Serial or Simulator using persistent RX buffer
    */
   private handleIncomingData(data: ArrayBuffer | Uint8Array | DataView) {
-    let chunkStr = '';
+    let rawBytes: Uint8Array;
     if (data instanceof DataView) {
-      chunkStr = this.textDecoder.decode(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+      rawBytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    } else if (data instanceof Uint8Array) {
+      rawBytes = data;
     } else {
-      chunkStr = this.textDecoder.decode(data);
+      rawBytes = new Uint8Array(data);
     }
+
+    const chunkStr = this.textDecoder.decode(rawBytes);
+
+    // [RX-CHUNK] Log de diagnóstico do fragmento recebido na camada de transporte
+    this.onPacketLog({
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toLocaleTimeString(),
+      type: 'info',
+      raw: formatBytesToSafeAscii(rawBytes),
+      decoded: `[RX-CHUNK] "${formatBytesToSafeAscii(rawBytes)}"`,
+      tag: 'AT',
+    });
 
     this.rxBuffer += chunkStr;
 
@@ -809,6 +1167,16 @@ export class ELM327Connection {
 
     // Processa a MESMA linha completa para listeners/chat, decoder e logs
     for (const line of completeLines) {
+      // [RX-LINE] Log de diagnóstico da linha completa extraída do rxBuffer
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'info',
+        raw: line,
+        decoded: `[RX-LINE] "${line}"`,
+        tag: 'AT',
+      });
+
       // 1. Notifica listeners de resposta ativos (rotina chat)
       for (const listener of [...this.responseListeners]) {
         listener(line);
