@@ -25,8 +25,11 @@ interface DiagnosticsPanelProps {
   rpm: number;
   vin?: string;
   ecuPartNumber?: string;
+  ecuCalId?: string;
+  ecuSoftwareLevel?: number;
   checkEngine: boolean;
   activeFaults: string[];
+  historicFaults?: string[];
   odometerKm?: number;
   engineHoursTotal?: number;
   engineMinutesTotal?: number;
@@ -40,12 +43,15 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = ({
   rpm,
   vin,
   ecuPartNumber,
+  ecuCalId,
+  ecuSoftwareLevel,
   checkEngine,
-  activeFaults,
-  odometerKm = 34226,
-  engineHoursTotal = 892,
-  engineMinutesTotal = 24,
-  engineIgnitionCycles = 3120,
+  activeFaults = [],
+  historicFaults = [],
+  odometerKm,
+  engineHoursTotal,
+  engineMinutesTotal,
+  engineIgnitionCycles,
   onReadDTC,
   onClearDTC,
   isConnected,
@@ -102,13 +108,25 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = ({
 
   const handleCopyReport = () => {
     const now = new Date().toLocaleString('pt-BR');
-    const faultsText =
+    const activeText =
       activeFaults.length === 0
-        ? 'Nenhuma falha ativa registrada na memória da ECM.'
+        ? '  • Nenhuma falha ativa registrada.'
         : activeFaults
             .map((c) => {
               const info = BANCO_ERROS_HARLEY[c];
-              return `  • ${c}: ${info ? info.desc : 'Código registrado'} (Sistema: ${
+              return `  • ${c}: ${info ? info.desc : 'Código gravado'} (Sistema: ${
+                info ? info.category : 'BCM/ECM'
+              })`;
+            })
+            .join('\n');
+
+    const historicText =
+      historicFaults.length === 0
+        ? '  • Nenhuma falha histórica registrada.'
+        : historicFaults
+            .map((c) => {
+              const info = BANCO_ERROS_HARLEY[c];
+              return `  • ${c}: ${info ? info.desc : 'Código gravado'} (Sistema: ${
                 info ? info.category : 'ECM'
               })`;
             })
@@ -119,28 +137,28 @@ LAUDO DE DIAGNÓSTICO E AUDITORIA HARLEY-DAVIDSON (J1850)
 Data/Hora: ${now}
 =====================================================
 IDENTIFICAÇÃO:
-• Chassi (VIN): ${vin || 'Não identificado / Genérico'}
-• P/N ECM Delphi: ${ecuPartNumber || '32534-05C'}
+• Chassi (VIN): ${vin || 'N/D'}
+• P/N ECM Delphi: ${ecuPartNumber || 'N/D'}
+• Calibration ID: ${ecuCalId || 'N/D'}
+• Software Level: ${ecuSoftwareLevel !== undefined ? `v${ecuSoftwareLevel}` : 'N/D'}
 • Rotação no Momento: ${rpm} RPM
 
 AUDITORIA DE HODÔMETRO vs HORÍMETRO DA ECM:
-• Hodômetro do Painel Físico: ${actualOdo.toLocaleString()} km
-• Horas de Motor Gravadas (ECM): ${engineHoursTotal}h ${engineMinutesTotal}m
-• Ciclos de Ignição (Partidas): ${engineIgnitionCycles ? engineIgnitionCycles.toLocaleString() : 'N/A'}
-• Média Histórica Geral: ${avgSpeed.toFixed(1)} km/h
+• Hodômetro do Painel Físico: ${actualOdo ? `${actualOdo.toLocaleString()} km` : 'N/D'}
+• Horas de Motor Gravadas (ECM): ${engineHoursTotal !== undefined ? `${engineHoursTotal}h ${engineMinutesTotal || 0}m` : 'N/D'}
+• Ciclos de Ignição (Partidas): ${engineIgnitionCycles !== undefined ? engineIgnitionCycles.toLocaleString() : 'N/D'}
+• Média Histórica Geral: ${avgSpeed > 0 ? `${avgSpeed.toFixed(1)} km/h` : 'N/D'}
 • Perfil de Uso Avaliado: ${profileLabels[selectedProfile]}
-• Quilometragem Estimada pela ECU: ${estimatedKm.toLocaleString()} km (faixa provável: ${minRangeKm.toLocaleString()} ~ ${maxRangeKm.toLocaleString()} km)
-• Variação Painel vs Motor: ${diffSign}${diffKm.toLocaleString()} km (${diffSign}${diffPercent.toFixed(1)}%)
-• Veredito: ${
-      isKmAuditedValid
-        ? 'HODÔMETRO ÍNTEGRO (Quilometragem autêntica compatível com a ECU)'
-        : 'ALERTA DE DIVERGÊNCIA (Velocidade média incomum ou descompasso de horas)'
-    }
+• Quilometragem Estimada pela ECU: ${estimatedKm > 0 ? `${estimatedKm.toLocaleString()} km` : 'N/D'}
+• Variação Painel vs Motor: ${diffKm ? `${diffSign}${diffKm.toLocaleString()} km (${diffSign}${diffPercent.toFixed(1)}%)` : 'N/D'}
 
 CÓDIGOS DE FALHA (DTCs):
-• Total de Códigos: ${activeFaults.length}
 • Luz de Injeção (MIL): ${checkEngine ? 'ACESO / ATIVO' : 'APAGADO / NORMAL'}
-${faultsText}
+FALHAS ATUAIS (${activeFaults.length}):
+${activeText}
+
+FALHAS HISTÓRICAS (${historicFaults.length}):
+${historicText}
 =====================================================
 Gerado via Harley J1850 VPW Diagnostic Tool
 `;
@@ -396,7 +414,7 @@ Gerado via Harley J1850 VPW Diagnostic Tool
             <span>Identificação Eletrônica dos Módulos</span>
           </div>
 
-          <div className="bg-[#161616] border border-neutral-800 rounded-2xl p-5 shadow-xl grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-[#161616] border border-neutral-800 rounded-2xl p-5 shadow-xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Giro Atual */}
             <div className="bg-[#0f1015] border border-neutral-800/90 rounded-xl p-4 flex items-center justify-between">
               <div>
@@ -421,27 +439,46 @@ Gerado via Harley J1850 VPW Diagnostic Tool
                   <span>Chassi (VIN)</span>
                 </div>
                 <div className="font-mono text-base font-bold text-emerald-400 mt-1 tracking-wider">
-                  {vin || (isConnected ? 'Clique em Ler Scanner' : 'Desconectado')}
+                  {vin || (isConnected ? 'N/D' : 'Desconectado')}
                 </div>
               </div>
               <span className="text-xs font-mono text-neutral-500 bg-neutral-900/80 px-2 py-1 rounded border border-neutral-800">
-                PID 09 02
+                7C 0F-11
               </span>
             </div>
 
-            {/* P/N da ECU */}
+            {/* P/N da ECM */}
             <div className="bg-[#0f1015] border border-neutral-800/90 rounded-xl p-4 flex items-center justify-between">
               <div>
                 <div className="text-[11px] font-mono text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
                   <Cpu className="w-3.5 h-3.5 text-blue-400" />
-                  <span>P/N da ECU</span>
+                  <span>P/N da ECM</span>
                 </div>
                 <div className="font-mono text-base font-bold text-blue-400 mt-1 tracking-wider">
-                  {ecuPartNumber || (isConnected ? 'Delphi EFI' : 'Desconectado')}
+                  {ecuPartNumber || (isConnected ? 'N/D' : 'Desconectado')}
                 </div>
               </div>
               <span className="text-xs font-mono text-neutral-500 bg-neutral-900/80 px-2 py-1 rounded border border-neutral-800">
-                PID 09 04
+                7C 01-02
+              </span>
+            </div>
+
+            {/* Calibration ID & SW Level */}
+            <div className="bg-[#0f1015] border border-neutral-800/90 rounded-xl p-4 flex items-center justify-between">
+              <div>
+                <div className="text-[11px] font-mono text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Cpu className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Cal ID / SW</span>
+                </div>
+                <div className="font-mono text-sm font-bold text-purple-300 mt-1 tracking-wider">
+                  {ecuCalId || (isConnected ? 'N/D' : 'Desconectado')}
+                  {ecuSoftwareLevel !== undefined && (
+                    <span className="text-xs font-normal text-neutral-400 ml-1.5">v{ecuSoftwareLevel}</span>
+                  )}
+                </div>
+              </div>
+              <span className="text-xs font-mono text-neutral-500 bg-neutral-900/80 px-2 py-1 rounded border border-neutral-800">
+                7C 03-0B
               </span>
             </div>
           </div>
@@ -774,73 +811,47 @@ Gerado via Harley J1850 VPW Diagnostic Tool
         </div>
 
         {/* 3. SEÇÃO DE CÓDIGOS DE FALHA (DTC CONTAINER) */}
-        <div id="sec-dtc" className="scroll-mt-24">
+        <div id="sec-dtc" className="scroll-mt-24 space-y-4">
+          {/* 3A. FALHAS ATUAIS (Nó 0x40 / Ativas) */}
           <div className="bg-[#161616] border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-neutral-800 pb-3 gap-3">
               <div className="flex items-center gap-2">
-                <div className="text-sm font-bold uppercase tracking-wider text-orange-500">
-                  Códigos de Erro Detectados na Memória
+                <div className="text-sm font-bold uppercase tracking-wider text-red-500">
+                  Falhas Atuais / Presentes (DTC Atual)
                 </div>
+                <span className="text-[10px] font-mono bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded font-bold text-neutral-300">
+                  Total: {activeFaults.length}
+                </span>
                 {checkEngine && (
                   <span className="text-[10px] font-mono bg-red-950/80 text-red-300 border border-red-700 px-2 py-0.5 rounded-full font-bold uppercase animate-pulse">
-                    Luz da Injeção (MIL) Ativa
+                    Luz de Injeção (MIL) Ativa
                   </span>
                 )}
               </div>
-
-              {/* Filtro Rápido dos Códigos */}
-              <div className="flex items-center gap-2">
-                <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-lg p-0.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setDtcFilter('all')}
-                    className={`px-2.5 py-1 rounded font-bold cursor-pointer transition-all ${
-                      dtcFilter === 'all'
-                        ? 'bg-neutral-700 text-white'
-                        : 'text-neutral-400 hover:text-white'
-                    }`}
-                  >
-                    Todos ({activeFaults.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDtcFilter('critical')}
-                    className={`px-2.5 py-1 rounded font-bold cursor-pointer transition-all ${
-                      dtcFilter === 'critical'
-                        ? 'bg-red-900/80 text-red-200 border border-red-700'
-                        : 'text-neutral-400 hover:text-white'
-                    }`}
-                  >
-                    Críticos (Injeção/Ignição)
-                  </button>
-                </div>
-              </div>
             </div>
 
-            {displayedFaults.length === 0 ? (
-              <div className="py-10 text-center flex flex-col items-center">
-                <CheckCircle2 className="w-12 h-12 text-emerald-400 mb-2" />
-                <div className="text-emerald-400 italic text-sm font-medium" id="dtc-limpo">
-                  {activeFaults.length === 0
-                    ? 'Nenhum código de falha ativo na memória da ECU.'
-                    : 'Nenhum código crítico na categoria selecionada.'}
+            {activeFaults.length === 0 ? (
+              <div className="py-6 text-center flex flex-col items-center">
+                <CheckCircle2 className="w-10 h-10 text-emerald-400 mb-2" />
+                <div className="text-emerald-400 italic text-sm font-medium">
+                  {isConnected ? 'Nenhuma falha ativa registrada no momento.' : 'Aguardando leitura do scanner.'}
                 </div>
                 <p className="text-xs text-neutral-500 mt-1">
-                  Todos os subsistemas de injeção eletrônica e sensores reportam operação normal.
+                  Não há falha persistente acendendo a lâmpada de injeção.
                 </p>
               </div>
             ) : (
               <ul className="space-y-3">
-                {displayedFaults.map((code) => {
+                {activeFaults.map((code) => {
                   const errInfo = BANCO_ERROS_HARLEY[code] || {
-                    desc: 'Código de falha OBD2 gravado',
-                    category: 'Injeção Eletrônica',
-                    tip: 'Consulte o manual de serviço oficial da Harley-Davidson para detalhamento do circuito.',
+                    desc: 'Código registrado pela ECU Harley',
+                    category: 'Injeção / Módulo',
+                    tip: 'Consulte o manual de serviço para detalhamento do circuito.',
                   };
 
                   return (
                     <li
-                      key={code}
+                      key={`active-${code}`}
                       className="bg-[#1e1111] border-l-4 border-red-500 border-y border-r border-red-950/60 rounded-r-xl p-4 transition-all hover:bg-[#251313]"
                     >
                       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
@@ -855,6 +866,74 @@ Gerado via Harley J1850 VPW Diagnostic Tool
                           </div>
                           <div className="text-xs text-neutral-400 flex items-center gap-2">
                             <span className="text-orange-400">Sistema: {errInfo.category}</span>
+                            <span className="text-neutral-600">•</span>
+                            <span className="text-red-400 font-semibold">Estado: Falha Ativa</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2.5 text-xs bg-black/40 p-2.5 rounded-lg border border-neutral-800/80 text-neutral-300">
+                        <span className="text-orange-400 font-bold">Diagnóstico mecânico: </span>
+                        {errInfo.tip}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          {/* 3B. FALHAS HISTÓRICAS (Nó 0x10 / ECM) */}
+          <div className="bg-[#161616] border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-neutral-800 pb-3 gap-3">
+              <div className="flex items-center gap-2">
+                <div className="text-sm font-bold uppercase tracking-wider text-amber-500">
+                  Falhas Históricas Gravadas na ECM (DTC Histórico)
+                </div>
+                <span className="text-[10px] font-mono bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded font-bold text-neutral-300">
+                  Total: {historicFaults.length}
+                </span>
+              </div>
+            </div>
+
+            {historicFaults.length === 0 ? (
+              <div className="py-6 text-center flex flex-col items-center">
+                <CheckCircle2 className="w-10 h-10 text-emerald-400 mb-2" />
+                <div className="text-emerald-400 italic text-sm font-medium">
+                  {isConnected ? 'Nenhuma falha histórica armazenada na memória da ECM.' : 'Aguardando leitura do scanner.'}
+                </div>
+                <p className="text-xs text-neutral-500 mt-1">
+                  A memória histórica da ECM não contém ocorrências passadas pendentes.
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {historicFaults.map((code) => {
+                  const errInfo = BANCO_ERROS_HARLEY[code] || {
+                    desc: 'Código gravado no histórico da ECM',
+                    category: 'Histórico ECM',
+                    tip: 'Falha intermitente ou passada registrada pela central.',
+                  };
+
+                  return (
+                    <li
+                      key={`hist-${code}`}
+                      className="bg-[#1a1711] border-l-4 border-amber-500 border-y border-r border-amber-950/60 rounded-r-xl p-4 transition-all hover:bg-[#211d14]"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 font-mono">
+                            <span className="text-lg font-black text-amber-400 bg-amber-950/80 px-2.5 py-0.5 rounded border border-amber-800">
+                              {code}
+                            </span>
+                            <span className="text-sm font-bold text-neutral-100">
+                              {errInfo.desc}
+                            </span>
+                          </div>
+                          <div className="text-xs text-neutral-400 flex items-center gap-2">
+                            <span className="text-orange-400">Sistema: {errInfo.category}</span>
+                            <span className="text-neutral-600">•</span>
+                            <span className="text-amber-400 font-semibold">Estado: Histórico Gravado</span>
                           </div>
                         </div>
                       </div>
@@ -871,18 +950,23 @@ Gerado via Harley J1850 VPW Diagnostic Tool
           </div>
         </div>
 
-        {/* 4. GUIA TÉCNICO E PINAGEM J1850 */}
+        {/* 4. GUIA TÉCNICO E PROTOCOLO HARLEY J1850 */}
         <div id="sec-guia" className="scroll-mt-24">
           <div className="bg-[#14151b] border border-neutral-800 rounded-2xl p-5 text-xs text-neutral-400 space-y-3">
             <div className="font-bold text-neutral-200 uppercase tracking-wider flex items-center gap-2">
               <Info className="w-4 h-4 text-orange-500" />
-              Como Funciona o Scanner Harley-Davidson J1850
+              Protocolo Harley-Davidson J1850 VPW
             </div>
             <p className="leading-relaxed">
-              Ao alternar para a tela de diagnóstico, o aplicativo envia um caractere de quebra para interromper o fluxo contínuo de escuta passiva (<code className="text-orange-400 font-mono">ATMA</code>), consultando em seguida o número de chassi VIN (<code className="text-orange-400 font-mono">09 02</code>), o Part Number da central ECM (<code className="text-orange-400 font-mono">09 04</code>) e a lista de falhas gravadas (<code className="text-orange-400 font-mono">03</code>).
+              O diagnóstico Harley-Davidson opera no barramento SAE J1850 VPW (10.4 kbps) através de comandos específicos mapeados pela comunidade:
             </p>
+            <ul className="list-disc list-inside space-y-1 text-neutral-300 font-mono text-[11px]">
+              <li><strong className="text-orange-400">Identificação (ATSH 0C 10 F1):</strong> 3C 01/02 (P/N), 3C 03/04 (CalID), 3C 0B (Software Level), 3C 0F/10/11 (VIN).</li>
+              <li><strong className="text-orange-400">DTCs (ATSH 6C XX F1 19 52 FF 00):</strong> Nó 0x10 (DTCs Históricos ECM), Nó 0x40 (DTCs Atuais BCM/TSM), Nó 0x60 (Painel).</li>
+              <li><strong className="text-orange-400">Limpeza (ATSH 6C XX F1 14):</strong> Apagamento sequencial com validação da resposta 54 antes de restaurar o monitoramento.</li>
+            </ul>
             <p className="leading-relaxed text-neutral-500">
-              Para retornar ao monitoramento de rotação e velocidade, basta clicar novamente no ícone da injeção ou na aba Painel no topo da tela.
+              Para retornar ao monitoramento de rotação, velocidade e marcha em tempo real, clique na aba Painel no topo da tela.
             </p>
           </div>
         </div>

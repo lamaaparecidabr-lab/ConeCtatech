@@ -1,20 +1,92 @@
 import { TelemetryData, PacketLog } from '../types';
 
+/**
+ * Cálculo e validação do CRC J1850 VPW (polinômio 0x1D, valor inicial 0xFF)
+ * Baseado fielmente na implementação do HarleyDroid (J1850.java)
+ */
+export function computeJ1850Crc(bytes: number[]): number {
+  let crc = 0xff;
+  for (let i = 0; i < bytes.length; i++) {
+    let c = bytes[i] & 0xff;
+    for (let j = 0; j < 8; ++j) {
+      let poly = 0;
+      if ((0x80 & (crc ^ c)) !== 0) {
+        poly = 0x1d;
+      }
+      crc = (((crc << 1) & 0xff) ^ poly) & 0xff;
+      c = (c << 1) & 0xff;
+    }
+  }
+  return (~crc) & 0xff;
+}
+
+export function validateJ1850Crc(bytesWithCrc: number[]): boolean {
+  let crc = 0xff;
+  for (let i = 0; i < bytesWithCrc.length; i++) {
+    let c = bytesWithCrc[i] & 0xff;
+    for (let j = 0; j < 8; ++j) {
+      let poly = 0;
+      if ((0x80 & (crc ^ c)) !== 0) {
+        poly = 0x1d;
+      }
+      crc = (((crc << 1) & 0xff) ^ poly) & 0xff;
+      c = (c << 1) & 0xff;
+    }
+  }
+  return (crc & 0xff) === 0xc4;
+}
+
 export class J1850Decoder {
   private buffer: string = '';
-  // HarleyDroid persistent block buffers for assembling VIN, ECM Part Number and CalID
+
+  // Buffers persistentes para montagem progressiva dos blocos Harley J1850 (HarleyDroid)
   private vinChars: string[] = Array(17).fill('-');
   private ecmPnChars: string[] = Array(12).fill('-');
   private ecmCalIdChars: string[] = Array(12).fill('-');
+
+  // Acumuladores de DTCs
+  private activeDtcSet: Set<string> = new Set();
+  private historicDtcSet: Set<string> = new Set();
+
+  // Rastreamento de Odômetro (HarleyDroid odoaccum / odolast)
+  private odolast: number = -1;
+  private odoaccum: number = 0;
+
+  // Timestamp da última leitura de marcha real (para não ser sobrescrita pelo fallback de cálculo)
+  private lastRealGearTimestamp: number = 0;
 
   public resetCounters() {
     this.vinChars = Array(17).fill('-');
     this.ecmPnChars = Array(12).fill('-');
     this.ecmCalIdChars = Array(12).fill('-');
+    this.activeDtcSet.clear();
+    this.historicDtcSet.clear();
+    this.odolast = -1;
+    this.odoaccum = 0;
+    this.lastRealGearTimestamp = 0;
+  }
+
+  public clearDtcLists() {
+    this.activeDtcSet.clear();
+    this.historicDtcSet.clear();
   }
 
   /**
-   * Cleans raw incoming serial chunk and parses complete frames/lines
+   * Converte string de bytes hexadecimais em array de números (bytes)
+   */
+  private hexStringToBytes(cleanHex: string): number[] {
+    const bytes: number[] = [];
+    for (let i = 0; i < cleanHex.length; i += 2) {
+      const b = parseInt(cleanHex.substr(i, 2), 16);
+      if (!isNaN(b)) {
+        bytes.push(b);
+      }
+    }
+    return bytes;
+  }
+
+  /**
+   * Limpa chunk serial bruto e processa linhas completas
    */
   public parseChunk(
     chunk: string,
@@ -23,9 +95,8 @@ export class J1850Decoder {
   ): TelemetryData {
     this.buffer += chunk;
 
-    // Check for standard line breaks or prompt '>'
+    // Quebra por quebras de linha e prompt '>' do ELM327
     const lines = this.buffer.split(/[\r\n>]+/);
-    // Keep the last incomplete fragment in buffer
     this.buffer = lines.pop() || '';
 
     let updatedTelemetry = { ...currentTelemetry };
@@ -34,7 +105,7 @@ export class J1850Decoder {
       const line = rawLine.trim();
       if (!line) continue;
 
-      // Check for ELM327 system messages or ATRV voltage
+      // Leitura de tensão da bateria via ATRV
       if (line.endsWith('V') && !isNaN(parseFloat(line))) {
         const voltage = parseFloat(line);
         updatedTelemetry.batteryVoltage = voltage;
@@ -49,7 +120,7 @@ export class J1850Decoder {
         continue;
       }
 
-      // Check for ELM327 standard responses (OK, ELM327 v1.5, SEARCHING..., NO DATA, etc.)
+      // Mensagens de status do ELM327
       if (
         line.startsWith('AT') ||
         line === 'OK' ||
@@ -70,10 +141,9 @@ export class J1850Decoder {
         continue;
       }
 
-      // Standardize hex text: strip spaces and lowercase
       const cleanHex = line.replace(/[\s:]+/g, '').toLowerCase();
 
-      // Decode Harley J1850 broadcast frames or OBD2 queries
+      // Decodificação J1850 Harley e fallback OBD2
       const { telemetry, packetLog } = this.decodeHex(cleanHex, line, updatedTelemetry);
       updatedTelemetry = telemetry;
       if (packetLog) {
@@ -85,7 +155,7 @@ export class J1850Decoder {
   }
 
   /**
-   * Decodes a cleaned hex string according to Harley-Davidson J1850 spec & OBD2
+   * Decodifica frame J1850 Harley-Davidson / fallback OBD2
    */
   public decodeHex(
     cleanHex: string,
@@ -95,7 +165,11 @@ export class J1850Decoder {
     let telemetry = { ...state, lastUpdated: Date.now() };
     let packetLog: PacketLog | undefined;
 
-    // 1. HARLEY RPM (Alvo: 281b1002xxxx)
+    const bytes = this.hexStringToBytes(cleanHex);
+
+    // =========================================================================
+    // 1. HARLEY RPM (Frame 28 1B 10 02 XX XX -> RPM = valor / 4)
+    // =========================================================================
     if (cleanHex.includes('281b1002')) {
       const idx = cleanHex.indexOf('281b1002');
       if (cleanHex.length >= idx + 12) {
@@ -104,7 +178,10 @@ export class J1850Decoder {
         if (!isNaN(valorDecimal)) {
           const rpmFinal = Math.round(valorDecimal / 4);
           telemetry.rpm = Math.min(8000, Math.max(0, rpmFinal));
-          telemetry.neutral = telemetry.speedKmH < 2 && telemetry.rpm > 0 && telemetry.gear === 'N';
+          // Só atualiza neutro por estimativa se não houver leitura do frame real 48 3B 40 XX
+          if (telemetry.neutral === undefined) {
+            telemetry.neutral = telemetry.speedKmH < 2 && telemetry.rpm > 0 && telemetry.gear === 'N';
+          }
           packetLog = {
             id: Math.random().toString(36).substring(2, 9),
             timestamp: new Date().toLocaleTimeString(),
@@ -117,7 +194,9 @@ export class J1850Decoder {
       }
     }
 
-    // 2. HARLEY VELOCIDADE (Alvo: 48291002xxxx)
+    // =========================================================================
+    // 2. HARLEY VELOCIDADE (Frame 48 29 10 02 XX XX -> km/h = valor / 128)
+    // =========================================================================
     else if (cleanHex.includes('48291002')) {
       const idx = cleanHex.indexOf('48291002');
       if (cleanHex.length >= idx + 12) {
@@ -127,7 +206,10 @@ export class J1850Decoder {
           const speedFinal = Math.round(valorDecimal / 128);
           telemetry.speedKmH = Math.min(260, Math.max(0, speedFinal));
           telemetry.speedMph = Math.round(telemetry.speedKmH * 0.621371);
-          telemetry.gear = this.calculateGear(telemetry.rpm, telemetry.speedKmH, telemetry.neutral);
+          // Usa estimativa de marcha como fallback APENAS se a marcha real não foi recebida nos últimos 3 segundos
+          if (Date.now() - this.lastRealGearTimestamp > 3000) {
+            telemetry.gear = this.calculateGear(telemetry.rpm, telemetry.speedKmH, telemetry.neutral);
+          }
           packetLog = {
             id: Math.random().toString(36).substring(2, 9),
             timestamp: new Date().toLocaleTimeString(),
@@ -140,7 +222,9 @@ export class J1850Decoder {
       }
     }
 
-    // 3. HARLEY TEMPERATURA MOTOR (Alvo: a8491010xx)
+    // =========================================================================
+    // 3. HARLEY TEMPERATURA MOTOR (Frame A8 49 10 10 XX -> XX = graus Fahrenheit)
+    // =========================================================================
     else if (cleanHex.includes('a8491010')) {
       const idx = cleanHex.indexOf('a8491010');
       if (cleanHex.length >= idx + 10) {
@@ -161,7 +245,143 @@ export class J1850Decoder {
       }
     }
 
-    // 4. HARLEY CHECK ENGINE / MIL LAMP (Alvo: 68881083 = LIGADA, 68881003 = DESLIGADA)
+    // =========================================================================
+    // 4. HARLEY MARCHA REAL (Frame A8 3B 10 03 XX)
+    // 01 = 1ª, 03 = 2ª, 07 = 3ª, 0F = 4ª, 1F = 5ª, 3F = 6ª
+    // =========================================================================
+    else if (cleanHex.includes('a83b1003')) {
+      const idx = cleanHex.indexOf('a83b1003');
+      if (cleanHex.length >= idx + 10) {
+        const hexVal = parseInt(cleanHex.substr(idx + 8, 2), 16);
+        if (!isNaN(hexVal)) {
+          let gear: number | 'N' = 'N';
+          if (hexVal === 0x01) gear = 1;
+          else if (hexVal === 0x03) gear = 2;
+          else if (hexVal === 0x07) gear = 3;
+          else if (hexVal === 0x0f) gear = 4;
+          else if (hexVal === 0x1f) gear = 5;
+          else if (hexVal === 0x3f) gear = 6;
+          else if (hexVal !== 0) {
+            // Decodificação genérica por deslocamento de bits (HarleyDroid)
+            let g = 0;
+            let temp = hexVal;
+            while ((temp >>= 1) !== 0) g++;
+            gear = (g >= 1 && g <= 6) ? g : 'N';
+          }
+
+          telemetry.gear = gear;
+          if (gear !== 'N') {
+            telemetry.neutral = false;
+          }
+          this.lastRealGearTimestamp = Date.now();
+
+          packetLog = {
+            id: Math.random().toString(36).substring(2, 9),
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'rx',
+            raw: originalLine,
+            decoded: `Harley J1850 Marcha Real: ${gear === 'N' ? 'Neutro (N)' : `${gear}ª Marcha`} [hex:0x${hexVal.toString(16)}]`,
+            tag: 'STATUS',
+          };
+        }
+      }
+    }
+
+    // =========================================================================
+    // 5. HARLEY NEUTRO E EMBREAGEM (Frame 48 3B 40 XX)
+    // bit 0x20 = neutro | bit 0x80 = embreagem acionada
+    // =========================================================================
+    else if (cleanHex.includes('483b40')) {
+      const idx = cleanHex.indexOf('483b40');
+      if (cleanHex.length >= idx + 8) {
+        const xx = parseInt(cleanHex.substr(idx + 6, 2), 16);
+        if (!isNaN(xx)) {
+          const isNeutral = (xx & 0x20) !== 0;
+          const isClutch = (xx & 0x80) !== 0;
+
+          telemetry.neutral = isNeutral;
+          telemetry.clutchEngaged = isClutch;
+          if (isNeutral) {
+            telemetry.gear = 'N';
+          }
+
+          packetLog = {
+            id: Math.random().toString(36).substring(2, 9),
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'rx',
+            raw: originalLine,
+            decoded: `Harley J1850: Neutro=${isNeutral ? 'SIM' : 'NÃO'} | Embreagem=${isClutch ? 'ACIONADA' : 'LIVRE'} [hex:0x${xx.toString(16)}]`,
+            tag: 'STATUS',
+          };
+        }
+      }
+    }
+
+    // =========================================================================
+    // 6. HARLEY SETAS / INDICADORES (Frame 48 DA 40 39 XX)
+    // 01 = esquerda, 02 = direita, 03 = ambas, 00 = desligadas
+    // =========================================================================
+    else if (cleanHex.includes('48da4039')) {
+      const idx = cleanHex.indexOf('48da4039');
+      if (cleanHex.length >= idx + 10) {
+        const xx = parseInt(cleanHex.substr(idx + 8, 2), 16);
+        if (!isNaN(xx)) {
+          const signals = xx & 0x03;
+          telemetry.turnLeft = (signals === 0x01 || signals === 0x03);
+          telemetry.turnRight = (signals === 0x02 || signals === 0x03);
+
+          packetLog = {
+            id: Math.random().toString(36).substring(2, 9),
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'rx',
+            raw: originalLine,
+            decoded: `Harley J1850 Setas: Esq=${telemetry.turnLeft ? 'ON' : 'OFF'} | Dir=${telemetry.turnRight ? 'ON' : 'OFF'}`,
+            tag: 'STATUS',
+          };
+        }
+      }
+    }
+
+    // =========================================================================
+    // 7. HARLEY ODÔMETRO (Frame A8 69 10 06 XX XX e A8 69 10 86 XX XX wraparound)
+    // Cada tick = 0,4m => quilômetros = ticks * 0.0004
+    // =========================================================================
+    else if (cleanHex.includes('a8691006') || cleanHex.includes('a8691086')) {
+      const is06 = cleanHex.includes('a8691006');
+      const idx = is06 ? cleanHex.indexOf('a8691006') : cleanHex.indexOf('a8691086');
+      if (cleanHex.length >= idx + 12) {
+        const ticksHex = cleanHex.substr(idx + 8, 4);
+        const y = parseInt(ticksHex, 16);
+        if (!isNaN(y)) {
+          if (this.odolast < 0) {
+            this.odolast = y;
+            this.odoaccum = y;
+          } else {
+            let delta = y - this.odolast;
+            if (delta < 0) delta += 65536;
+            this.odoaccum += delta;
+            this.odolast = y;
+          }
+
+          const kmTotal = Math.round(this.odoaccum * 0.0004);
+          if (kmTotal >= 0 && kmTotal < 1000000) {
+            telemetry.odometerKm = kmTotal;
+            packetLog = {
+              id: Math.random().toString(36).substring(2, 9),
+              timestamp: new Date().toLocaleTimeString(),
+              type: 'rx',
+              raw: originalLine,
+              decoded: `Harley J1850 Odômetro: ${kmTotal.toLocaleString()} km (Ticks: ${this.odoaccum})`,
+              tag: 'STATUS',
+            };
+          }
+        }
+      }
+    }
+
+    // =========================================================================
+    // 8. HARLEY CHECK ENGINE / MIL LAMP (Frame 68 88 10 83 = ON, 68 88 10 03 = OFF)
+    // =========================================================================
     else if (cleanHex.includes('68881083')) {
       telemetry.checkEngine = true;
       packetLog = {
@@ -184,80 +404,256 @@ export class J1850Decoder {
       };
     }
 
-    // 5. HARLEY DIAGNÓSTICO: CHASSI / VIN (Modo 09 PID 02 -> 49 02 ... ou com header 48 6B 10 49 02...)
-    else if (cleanHex.includes('4902')) {
-      const idx = cleanHex.indexOf('4902');
-      let hexData = cleanHex.substring(idx + 4);
-      // Strip line index if present (e.g. 01, 02, 03 in multi-line responses)
-      if (hexData.length > 4 && (hexData.startsWith('01') || hexData.startsWith('02') || hexData.startsWith('03'))) {
-        hexData = hexData.substring(2);
-      }
-      const asciiVin = hexToAscii(hexData).replace(/[^A-HJ-NPR-Z0-9]/gi, '').toUpperCase();
-      if (asciiVin && asciiVin.length >= 7) {
-        telemetry.vin = asciiVin.substring(0, 17);
-        packetLog = {
-          id: Math.random().toString(36).substring(2, 9),
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'rx',
-          raw: originalLine,
-          decoded: `Chassi Identificado (VIN): ${telemetry.vin}`,
-          tag: 'STATUS',
-        };
+    // =========================================================================
+    // 9. HARLEY IDENTIFICAÇÃO DA ECM (0C F1 10 7C XX ...)
+    // Respostas aos comandos 3C 01, 3C 02, 3C 03, 3C 04, 3C 0B, 3C 0F, 3C 10, 3C 11
+    // =========================================================================
+    else if (cleanHex.includes('0cf1107c')) {
+      const idx = cleanHex.indexOf('0cf1107c');
+      if (cleanHex.length >= idx + 10) {
+        const blockId = parseInt(cleanHex.substr(idx + 8, 2), 16);
+        const payloadHex = cleanHex.substring(idx + 10);
+        const payloadBytes = this.hexStringToBytes(payloadHex);
+
+        switch (blockId) {
+          // ECM Part Number Bloco 1 (6 bytes)
+          case 0x01: {
+            for (let i = 0; i < Math.min(6, payloadBytes.length); i++) {
+              const ch = String.fromCharCode(payloadBytes[i]);
+              if (ch.match(/[a-zA-Z0-9-]/)) this.ecmPnChars[i] = ch;
+            }
+            this.updateEcmPn(telemetry);
+            packetLog = {
+              id: Math.random().toString(36).substring(2, 9),
+              timestamp: new Date().toLocaleTimeString(),
+              type: 'rx',
+              raw: originalLine,
+              decoded: `Harley J1850: ECM P/N Bloco 1 recebido`,
+              tag: 'STATUS',
+            };
+            break;
+          }
+
+          // ECM Part Number Bloco 2 (6 bytes)
+          case 0x02: {
+            for (let i = 0; i < Math.min(6, payloadBytes.length); i++) {
+              const ch = String.fromCharCode(payloadBytes[i]);
+              if (ch.match(/[a-zA-Z0-9-]/)) this.ecmPnChars[6 + i] = ch;
+            }
+            this.updateEcmPn(telemetry);
+            packetLog = {
+              id: Math.random().toString(36).substring(2, 9),
+              timestamp: new Date().toLocaleTimeString(),
+              type: 'rx',
+              raw: originalLine,
+              decoded: `Harley J1850: ECM P/N Bloco 2 recebido -> P/N: ${telemetry.ecuPartNumber || 'Incompleto'}`,
+              tag: 'STATUS',
+            };
+            break;
+          }
+
+          // Calibration ID Bloco 1 (6 bytes)
+          case 0x03: {
+            for (let i = 0; i < Math.min(6, payloadBytes.length); i++) {
+              const ch = String.fromCharCode(payloadBytes[i]);
+              if (ch.match(/[a-zA-Z0-9-]/)) this.ecmCalIdChars[i] = ch;
+            }
+            this.updateCalId(telemetry);
+            packetLog = {
+              id: Math.random().toString(36).substring(2, 9),
+              timestamp: new Date().toLocaleTimeString(),
+              type: 'rx',
+              raw: originalLine,
+              decoded: `Harley J1850: Cal ID Bloco 1 recebido`,
+              tag: 'STATUS',
+            };
+            break;
+          }
+
+          // Calibration ID Bloco 2 (6 bytes)
+          case 0x04: {
+            for (let i = 0; i < Math.min(6, payloadBytes.length); i++) {
+              const ch = String.fromCharCode(payloadBytes[i]);
+              if (ch.match(/[a-zA-Z0-9-]/)) this.ecmCalIdChars[6 + i] = ch;
+            }
+            this.updateCalId(telemetry);
+            packetLog = {
+              id: Math.random().toString(36).substring(2, 9),
+              timestamp: new Date().toLocaleTimeString(),
+              type: 'rx',
+              raw: originalLine,
+              decoded: `Harley J1850: Cal ID Bloco 2 recebido -> CalID: ${telemetry.ecuCalId || 'Incompleto'}`,
+              tag: 'STATUS',
+            };
+            break;
+          }
+
+          // Software Level (1 byte)
+          case 0x0b: {
+            if (payloadBytes.length >= 1) {
+              const swLevel = payloadBytes[0];
+              telemetry.ecuSoftwareLevel = swLevel;
+              packetLog = {
+                id: Math.random().toString(36).substring(2, 9),
+                timestamp: new Date().toLocaleTimeString(),
+                type: 'rx',
+                raw: originalLine,
+                decoded: `Harley J1850: ECM Software Level = ${swLevel}`,
+                tag: 'STATUS',
+              };
+            }
+            break;
+          }
+
+          // VIN Bloco 1 (6 bytes -> chars 0..5)
+          case 0x0f: {
+            for (let i = 0; i < Math.min(6, payloadBytes.length); i++) {
+              const ch = String.fromCharCode(payloadBytes[i]);
+              if (ch.match(/[a-zA-Z0-9]/)) this.vinChars[i] = ch.toUpperCase();
+            }
+            this.updateVin(telemetry);
+            packetLog = {
+              id: Math.random().toString(36).substring(2, 9),
+              timestamp: new Date().toLocaleTimeString(),
+              type: 'rx',
+              raw: originalLine,
+              decoded: `Harley J1850: VIN Bloco 1 recebido`,
+              tag: 'STATUS',
+            };
+            break;
+          }
+
+          // VIN Bloco 2 (6 bytes -> chars 6..11)
+          case 0x10: {
+            for (let i = 0; i < Math.min(6, payloadBytes.length); i++) {
+              const ch = String.fromCharCode(payloadBytes[i]);
+              if (ch.match(/[a-zA-Z0-9]/)) this.vinChars[6 + i] = ch.toUpperCase();
+            }
+            this.updateVin(telemetry);
+            packetLog = {
+              id: Math.random().toString(36).substring(2, 9),
+              timestamp: new Date().toLocaleTimeString(),
+              type: 'rx',
+              raw: originalLine,
+              decoded: `Harley J1850: VIN Bloco 2 recebido`,
+              tag: 'STATUS',
+            };
+            break;
+          }
+
+          // VIN Bloco 3 (5 bytes -> chars 12..16)
+          case 0x11: {
+            for (let i = 0; i < Math.min(5, payloadBytes.length); i++) {
+              const ch = String.fromCharCode(payloadBytes[i]);
+              if (ch.match(/[a-zA-Z0-9]/)) this.vinChars[12 + i] = ch.toUpperCase();
+            }
+            this.updateVin(telemetry);
+            packetLog = {
+              id: Math.random().toString(36).substring(2, 9),
+              timestamp: new Date().toLocaleTimeString(),
+              type: 'rx',
+              raw: originalLine,
+              decoded: `Harley J1850: VIN Bloco 3 recebido -> VIN: ${telemetry.vin || 'Incompleto'}`,
+              tag: 'STATUS',
+            };
+            break;
+          }
+        }
       }
     }
 
-    // 6. HARLEY DIAGNÓSTICO: ECU PART NUMBER (Modo 09 PID 04 -> 49 04 ... ou com header 48 6B 10 49 04...)
-    else if (cleanHex.includes('4904')) {
-      const idx = cleanHex.indexOf('4904');
-      let hexData = cleanHex.substring(idx + 4);
-      if (hexData.length > 4 && (hexData.startsWith('01') || hexData.startsWith('02'))) {
-        hexData = hexData.substring(2);
-      }
-      const asciiEcu = hexToAscii(hexData).replace(/[^A-Z0-9-]/gi, '').toUpperCase();
-      if (asciiEcu && asciiEcu.length >= 3) {
-        telemetry.ecuPartNumber = asciiEcu;
-        packetLog = {
-          id: Math.random().toString(36).substring(2, 9),
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'rx',
-          raw: originalLine,
-          decoded: `P/N da ECU: ${asciiEcu}`,
-          tag: 'STATUS',
-        };
-      }
-    }
+    // =========================================================================
+    // 10. HARLEY DTCs (Respostas 6C F1 10 59, 6C F1 40 59, 6C F1 60 59)
+    // in[2] == 0x10 -> histórico | in[2] == 0x40 -> atual
+    // =========================================================================
+    else if (
+      cleanHex.includes('6cf11059') ||
+      cleanHex.includes('6cf14059') ||
+      cleanHex.includes('6cf16059')
+    ) {
+      let node = '10';
+      if (cleanHex.includes('6cf14059')) node = '40';
+      else if (cleanHex.includes('6cf16059')) node = '60';
 
-    // 7. HARLEY DIAGNÓSTICO: CÓDIGOS DE FALHA MODO 03 (Resposta 43xxxx... ou 48 6B 10 43...)
-    else if (cleanHex.includes('43') && (cleanHex.startsWith('43') || cleanHex.includes('1043') || cleanHex.includes('f143') || cleanHex.includes('6b43'))) {
-      let dtcPayload = '';
-      if (cleanHex.startsWith('43')) {
-        dtcPayload = cleanHex.substring(2);
-      } else {
-        const idx = cleanHex.indexOf('43');
-        if (idx >= 0) {
-          dtcPayload = cleanHex.substring(idx + 2);
+      const matchKey = `6cf1${node}59`;
+      const idx = cleanHex.indexOf(matchKey);
+      const payloadHex = cleanHex.substring(idx + 8);
+      const payloadBytes = this.hexStringToBytes(payloadHex);
+
+      const parsedCodes: string[] = [];
+      // Cada código DTC é composto por 2 bytes (in[4], in[5])
+      for (let i = 0; i + 1 < payloadBytes.length; i += 2) {
+        const b0 = payloadBytes[i];
+        const b1 = payloadBytes[i + 1];
+
+        // Se ambos forem zero ou chegamos no byte de CRC
+        if (b0 === 0 && b1 === 0) continue;
+
+        let prefix = 'P';
+        switch ((b0 & 0xc0) >> 6) {
+          case 0: prefix = 'P'; break;
+          case 1: prefix = 'C'; break;
+          case 2: prefix = 'B'; break;
+          case 3: prefix = 'U'; break;
+        }
+
+        const digit1 = ((b0 & 0x30) >> 4).toString(16);
+        const digit2 = (b0 & 0x0f).toString(16);
+        const digit3 = ((b1 & 0xf0) >> 4).toString(16);
+        const digit4 = (b1 & 0x0f).toString(16);
+        const fullCode = `${prefix}${digit1}${digit2}${digit3}${digit4}`.toUpperCase();
+
+        if (fullCode !== 'P0000') {
+          parsedCodes.push(fullCode);
+          if (node === '10') {
+            this.historicDtcSet.add(fullCode);
+          } else {
+            this.activeDtcSet.add(fullCode);
+          }
         }
       }
 
-      if (dtcPayload && dtcPayload.length >= 4) {
-        const parsedDtcs = parseMode03DTCs(dtcPayload);
-        telemetry.activeDtcList = parsedDtcs;
-        if (parsedDtcs.length > 0) {
-          telemetry.checkEngine = true;
-        }
-        packetLog = {
-          id: Math.random().toString(36).substring(2, 9),
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'rx',
-          raw: originalLine,
-          decoded: `DTCs da ECM Harley: ${parsedDtcs.length > 0 ? parsedDtcs.join(', ') : 'Nenhuma falha ativa registrada (43 00 00) [OK]'}`,
-          tag: 'DTC',
-        };
+      telemetry.activeDtcList = Array.from(this.activeDtcSet);
+      telemetry.historicDtcList = Array.from(this.historicDtcSet);
+      if (this.activeDtcSet.size > 0) {
+        telemetry.checkEngine = true;
       }
+
+      const isHistoric = node === '10';
+      packetLog = {
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'rx',
+        raw: originalLine,
+        decoded: `Harley J1850 DTCs (${isHistoric ? 'Históricos' : 'Atuais'} - Nó 0x${node}): ${
+          parsedCodes.length > 0 ? parsedCodes.join(', ') : 'Nenhuma falha gravada [OK]'
+        }`,
+        tag: 'DTC',
+      };
     }
 
-    // 8. HARLEY VELOCÍMETRO (0x60): ODÔMETRO TOTAL (Broadcast 486010... ou Mode 22 PID 0201 / Mode 01 PID A6)
-    else if (cleanHex.includes('620201') || cleanHex.includes('41a6') || cleanHex.includes('486010') || cleanHex.includes('a86010')) {
+    // =========================================================================
+    // 11. HARLEY CLEAR DTC CONFIRMAÇÃO (6C F1 10 54 / 6C F1 40 54 / 6C F1 60 54)
+    // =========================================================================
+    else if (
+      cleanHex.includes('6cf11054') ||
+      cleanHex.includes('6cf14054') ||
+      cleanHex.includes('6cf16054')
+    ) {
+      packetLog = {
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'rx',
+        raw: originalLine,
+        decoded: `Harley J1850: Confirmação de Memória de DTC Limpa [Resposta 54 OK]`,
+        tag: 'DTC',
+      };
+    }
+
+    // =========================================================================
+    // 12. FALLBACK ODÔMETRO GENÉRICO / AUDITORIA DELPHI
+    // =========================================================================
+    else if (cleanHex.includes('620201') || cleanHex.includes('41a6') || cleanHex.includes('486010')) {
       let odoKm = 0;
       if (cleanHex.includes('620201')) {
         const idx = cleanHex.indexOf('620201');
@@ -276,21 +672,21 @@ export class J1850Decoder {
         }
       }
 
-      if (odoKm > 0 && odoKm < 1000000) {
+      if (odoKm > 0 && odoKm < 1000000 && telemetry.odometerKm === undefined) {
         telemetry.odometerKm = odoKm;
         packetLog = {
           id: Math.random().toString(36).substring(2, 9),
           timestamp: new Date().toLocaleTimeString(),
           type: 'rx',
           raw: originalLine,
-          decoded: `Odômetro do Velocímetro (Nó 0x60): ${odoKm.toLocaleString()} KM`,
+          decoded: `Odômetro do Velocímetro: ${odoKm.toLocaleString()} KM`,
           tag: 'STATUS',
         };
       }
     }
 
-    // 9. HARLEY ECM (0x10): HORÍMETRO & CICLOS DE IGNIÇÃO DA ECU (Mode 22 PID 010A ou 011F)
-    else if (cleanHex.includes('62010a') || cleanHex.includes('411f') || cleanHex.includes('2810600a')) {
+    // Horímetro & Partidas ECM Delphi (Modo 22 PID 010A ou 011F)
+    else if (cleanHex.includes('62010a') || cleanHex.includes('411f')) {
       if (cleanHex.includes('62010a')) {
         const idx = cleanHex.indexOf('62010a');
         if (cleanHex.length >= idx + 16) {
@@ -308,7 +704,7 @@ export class J1850Decoder {
               timestamp: new Date().toLocaleTimeString(),
               type: 'rx',
               raw: originalLine,
-              decoded: `Auditoria ECM Delphi: ${hours}h ${minutes}min de motor | ${starts} partidas`,
+              decoded: `Auditoria ECM Delphi: ${hours}h ${minutes}m de motor | ${starts} partidas`,
               tag: 'STATUS',
             };
           }
@@ -319,201 +715,77 @@ export class J1850Decoder {
           const seconds = parseInt(cleanHex.substr(idx + 4, 4), 16);
           if (!isNaN(seconds)) {
             const totalMins = Math.round(seconds / 60);
-          telemetry.engineHoursTotal = Math.floor(totalMins / 60);
-          telemetry.engineMinutesTotal = totalMins % 60;
-          packetLog = {
-            id: Math.random().toString(36).substring(2, 9),
-            timestamp: new Date().toLocaleTimeString(),
-            type: 'rx',
-            raw: originalLine,
-            decoded: `Tempo de Operação do Motor (011F): ${telemetry.engineHoursTotal}h ${telemetry.engineMinutesTotal}m`,
-            tag: 'STATUS',
-          };
+            telemetry.engineHoursTotal = Math.floor(totalMins / 60);
+            telemetry.engineMinutesTotal = totalMins % 60;
+          }
         }
       }
     }
-  }
 
-    // 8. HARLEY INDICADORES & SWITCHES (288329xx / 483b10xx)
-    else if (cleanHex.includes('483b10') || cleanHex.includes('288329')) {
-      // Decode turn signals, neutral switch, high beam
-      const isTurnLeft = cleanHex.includes('01') || cleanHex.includes('10');
-      const isTurnRight = cleanHex.includes('02') || cleanHex.includes('20');
-      const isNeutral = cleanHex.includes('40') || cleanHex.includes('04');
-      if (isNeutral) {
-        telemetry.neutral = true;
-        telemetry.gear = 'N';
-      }
-      packetLog = {
-        id: Math.random().toString(36).substring(2, 9),
-        timestamp: new Date().toLocaleTimeString(),
-        type: 'rx',
-        raw: originalLine,
-        decoded: `Harley J1850 Estado Elétrico / Chaves`,
-        tag: 'STATUS',
-      };
-    }
-
-    // 9. STANDARD OBD2 PID FALLBACK (Quando a moto é consultada por PIDs padrão)
-    // 410cxxxx: OBD2 Mode 01 PID 0C (RPM)
+    // =========================================================================
+    // 13. FALLBACK OBD-II GENÉRICO (PRESERVADO PARA COMPATIBILIDADE)
+    // =========================================================================
     else if (cleanHex.startsWith('410c') && cleanHex.length >= 8) {
       const a = parseInt(cleanHex.substring(4, 6), 16);
       const b = parseInt(cleanHex.substring(6, 8), 16);
       if (!isNaN(a) && !isNaN(b)) {
         telemetry.rpm = Math.round((a * 256 + b) / 4);
-        packetLog = {
-          id: Math.random().toString(36).substring(2, 9),
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'rx',
-          raw: originalLine,
-          decoded: `OBD2 PID 0C RPM: ${telemetry.rpm} RPM`,
-          tag: 'RPM',
-        };
       }
-    }
-    // 410dxx: OBD2 Mode 01 PID 0D (Speed km/h)
-    else if (cleanHex.startsWith('410d') && cleanHex.length >= 6) {
+    } else if (cleanHex.startsWith('410d') && cleanHex.length >= 6) {
       const speed = parseInt(cleanHex.substring(4, 6), 16);
       if (!isNaN(speed)) {
         telemetry.speedKmH = speed;
         telemetry.speedMph = Math.round(speed * 0.621371);
-        telemetry.gear = this.calculateGear(telemetry.rpm, telemetry.speedKmH, telemetry.neutral);
-        packetLog = {
-          id: Math.random().toString(36).substring(2, 9),
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'rx',
-          raw: originalLine,
-          decoded: `OBD2 PID 0D Velocidade: ${speed} km/h`,
-          tag: 'SPEED',
-        };
       }
-    }
-    // 4105xx: OBD2 Mode 01 PID 05 (Engine Coolant/Head Temp)
-    else if (cleanHex.startsWith('4105') && cleanHex.length >= 6) {
+    } else if (cleanHex.startsWith('4105') && cleanHex.length >= 6) {
       const rawC = parseInt(cleanHex.substring(4, 6), 16) - 40;
       if (!isNaN(rawC)) {
         telemetry.engineTempC = rawC;
         telemetry.engineTempF = Math.round((rawC * 9) / 5 + 32);
-        packetLog = {
-          id: Math.random().toString(36).substring(2, 9),
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'rx',
-          raw: originalLine,
-          decoded: `OBD2 PID 05 Temp: ${rawC}°C (${telemetry.engineTempF}°F)`,
-          tag: 'TEMP',
-        };
       }
-    }
-    // 4142xxxx: Control Module Voltage
-    else if (cleanHex.startsWith('4142') && cleanHex.length >= 8) {
+    } else if (cleanHex.startsWith('4142') && cleanHex.length >= 8) {
       const a = parseInt(cleanHex.substring(4, 6), 16);
       const b = parseInt(cleanHex.substring(6, 8), 16);
       if (!isNaN(a) && !isNaN(b)) {
         telemetry.batteryVoltage = (a * 256 + b) / 1000;
-        packetLog = {
-          id: Math.random().toString(36).substring(2, 9),
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'rx',
-          raw: originalLine,
-          decoded: `OBD2 PID 42 Tensão: ${telemetry.batteryVoltage.toFixed(1)}V`,
-          tag: 'STATUS',
-        };
       }
-    }
-    // 4114xxyy: OBD2 Mode 01 PID 14 (O2 Sensor 1 Bank 1 - Front Cylinder)
-    else if (cleanHex.startsWith('4114') && cleanHex.length >= 8) {
+    } else if (cleanHex.startsWith('4114') && cleanHex.length >= 8) {
       const voltByte = parseInt(cleanHex.substring(4, 6), 16);
       const trimByte = parseInt(cleanHex.substring(6, 8), 16);
       if (!isNaN(voltByte)) {
         telemetry.frontO2Voltage = Number((voltByte / 200).toFixed(3));
-        if (!isNaN(trimByte) && trimByte !== 0xFF) {
+        if (!isNaN(trimByte) && trimByte !== 0xff) {
           telemetry.frontShortTermFuelTrim = Number((((trimByte - 128) * 100) / 128).toFixed(1));
         }
-        // Calculate estimated AFR (Stoichiometric 14.7:1 baseline)
         telemetry.frontAFR = Number((14.7 - (telemetry.frontO2Voltage - 0.45) * 3).toFixed(2));
-        packetLog = {
-          id: Math.random().toString(36).substring(2, 9),
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'rx',
-          raw: originalLine,
-          decoded: `Sonda O2 Dianteira: ${telemetry.frontO2Voltage}V | Trim: ${telemetry.frontShortTermFuelTrim || 0}% | AFR: ${telemetry.frontAFR}`,
-          tag: 'O2',
-        };
       }
-    }
-    // 4115xxyy: OBD2 Mode 01 PID 15 (O2 Sensor 2 Bank 1 / Sensor 1 Bank 2 - Rear Cylinder)
-    else if (cleanHex.startsWith('4115') && cleanHex.length >= 8) {
+    } else if (cleanHex.startsWith('4115') && cleanHex.length >= 8) {
       const voltByte = parseInt(cleanHex.substring(4, 6), 16);
       const trimByte = parseInt(cleanHex.substring(6, 8), 16);
       if (!isNaN(voltByte)) {
         telemetry.rearO2Voltage = Number((voltByte / 200).toFixed(3));
-        if (!isNaN(trimByte) && trimByte !== 0xFF) {
+        if (!isNaN(trimByte) && trimByte !== 0xff) {
           telemetry.rearShortTermFuelTrim = Number((((trimByte - 128) * 100) / 128).toFixed(1));
         }
         telemetry.rearAFR = Number((14.7 - (telemetry.rearO2Voltage - 0.45) * 3).toFixed(2));
-        packetLog = {
-          id: Math.random().toString(36).substring(2, 9),
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'rx',
-          raw: originalLine,
-          decoded: `Sonda O2 Traseira: ${telemetry.rearO2Voltage}V | Trim: ${telemetry.rearShortTermFuelTrim || 0}% | AFR: ${telemetry.rearAFR}`,
-          tag: 'O2',
-        };
       }
-    }
-    // 4111xx: OBD2 Mode 01 PID 11 (Throttle Position TPS %)
-    else if (cleanHex.startsWith('4111') && cleanHex.length >= 6) {
+    } else if (cleanHex.startsWith('4111') && cleanHex.length >= 6) {
       const tpsVal = parseInt(cleanHex.substring(4, 6), 16);
       if (!isNaN(tpsVal)) {
         telemetry.throttlePosition = Math.round((tpsVal * 100) / 255);
-        packetLog = {
-          id: Math.random().toString(36).substring(2, 9),
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'rx',
-          raw: originalLine,
-          decoded: `Abertura Borboleta (TPS): ${telemetry.throttlePosition}%`,
-          tag: 'STATUS',
-        };
       }
-    }
-    // 410bxx: OBD2 Mode 01 PID 0B (MAP - Manifold Absolute Pressure)
-    else if (cleanHex.startsWith('410b') && cleanHex.length >= 6) {
+    } else if (cleanHex.startsWith('410b') && cleanHex.length >= 6) {
       const mapVal = parseInt(cleanHex.substring(4, 6), 16);
       if (!isNaN(mapVal)) {
         telemetry.manifoldPressureKpa = mapVal;
-        packetLog = {
-          id: Math.random().toString(36).substring(2, 9),
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'rx',
-          raw: originalLine,
-          decoded: `Sensor MAP (Pressão Coletor): ${mapVal} kPa`,
-          tag: 'STATUS',
-        };
       }
-    }
-    // 4103xxxx: OBD2 Mode 01 PID 03 (Fuel System Status)
-    else if (cleanHex.startsWith('4103') && cleanHex.length >= 6) {
+    } else if (cleanHex.startsWith('4103') && cleanHex.length >= 6) {
       const statusByte = parseInt(cleanHex.substring(4, 6), 16);
-      if (statusByte === 2) {
-        telemetry.fuelSystemStatus = 'Closed-Loop';
-      } else if (statusByte === 8) {
-        telemetry.fuelSystemStatus = 'Open-Loop (WOT)';
-      } else if (statusByte === 1) {
-        telemetry.fuelSystemStatus = 'Open-Loop (Cold)';
-      } else {
-        telemetry.fuelSystemStatus = 'Open-Loop';
-      }
-      packetLog = {
-        id: Math.random().toString(36).substring(2, 9),
-        timestamp: new Date().toLocaleTimeString(),
-        type: 'rx',
-        raw: originalLine,
-        decoded: `Status de Injeção: ${telemetry.fuelSystemStatus}`,
-        tag: 'O2',
-      };
-    }
-    // 70xxxx / 71xxxx: Positive response to Mode 30/31 Actuator Test
-    else if (cleanHex.startsWith('70') || cleanHex.startsWith('71')) {
+      if (statusByte === 2) telemetry.fuelSystemStatus = 'Closed-Loop';
+      else if (statusByte === 8) telemetry.fuelSystemStatus = 'Open-Loop (WOT)';
+      else if (statusByte === 1) telemetry.fuelSystemStatus = 'Open-Loop (Cold)';
+      else telemetry.fuelSystemStatus = 'Open-Loop';
+    } else if (cleanHex.startsWith('70') || cleanHex.startsWith('71')) {
       packetLog = {
         id: Math.random().toString(36).substring(2, 9),
         timestamp: new Date().toLocaleTimeString(),
@@ -523,7 +795,6 @@ export class J1850Decoder {
         tag: 'ACTUATOR',
       };
     } else {
-      // General raw hex
       packetLog = {
         id: Math.random().toString(36).substring(2, 9),
         timestamp: new Date().toLocaleTimeString(),
@@ -537,22 +808,36 @@ export class J1850Decoder {
     return { telemetry, packetLog };
   }
 
+  private updateVin(telemetry: TelemetryData) {
+    const raw = this.vinChars.join('').trim();
+    if (raw.length === 17 && !raw.includes('-')) {
+      telemetry.vin = raw;
+    }
+  }
+
+  private updateEcmPn(telemetry: TelemetryData) {
+    const raw = this.ecmPnChars.join('').replace(/-/g, '').trim();
+    if (raw.length >= 4) {
+      telemetry.ecuPartNumber = raw;
+    }
+  }
+
+  private updateCalId(telemetry: TelemetryData) {
+    const raw = this.ecmCalIdChars.join('').replace(/-/g, '').trim();
+    if (raw.length >= 4) {
+      telemetry.ecuCalId = raw;
+    }
+  }
+
   /**
-   * Gear estimation based on Harley Davidson Big Twin / Sportster transmission ratios
+   * Estimativa de marcha baseada em relações de transmissão Harley-Davidson (Fallback)
    */
-  private calculateGear(rpm: number, speedKmH: number, isNeutral: boolean): number | 'N' {
+  private calculateGear(rpm: number, speedKmH: number, isNeutral?: boolean): number | 'N' {
     if (isNeutral || speedKmH < 3 || rpm < 700) {
       return 'N';
     }
 
     const ratio = rpm / speedKmH;
-    // Ratios (RPM per km/h) for typical Harley Davidson 5-speed & 6-speed gearboxes:
-    // 1st: ~70 - 95
-    // 2nd: ~48 - 65
-    // 3rd: ~35 - 47
-    // 4th: ~27 - 34
-    // 5th: ~22 - 26
-    // 6th: ~17 - 21
     if (ratio > 68) return 1;
     if (ratio > 47) return 2;
     if (ratio > 34) return 3;
@@ -565,7 +850,7 @@ export class J1850Decoder {
 }
 
 /**
- * Converte bytes hexadecimais para string ASCII (letras do chassi VIN ou Part Number da ECU)
+ * Converte bytes hexadecimais para string ASCII
  */
 export function hexToAscii(hex: string): string {
   let str = '';
@@ -579,7 +864,7 @@ export function hexToAscii(hex: string): string {
 }
 
 /**
- * Converte a resposta do Modo OBD2 03 em códigos DTC (ex: 43 01 07 -> P0107)
+ * Converte a resposta do Modo OBD2 03 em códigos DTC (Fallback OBD2 genérico)
  */
 export function parseMode03DTCs(bytesHex: string): string[] {
   const dtcs: string[] = [];

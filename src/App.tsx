@@ -38,9 +38,9 @@ const INITIAL_TELEMETRY: TelemetryData = {
   rpm: 0,
   speedKmH: 0,
   speedMph: 0,
-  engineTempF: 180,
-  engineTempC: 82,
-  batteryVoltage: 12.8,
+  engineTempF: 0,
+  engineTempC: 0,
+  batteryVoltage: 0,
   gear: 'N',
   turnLeft: false,
   turnRight: false,
@@ -49,13 +49,8 @@ const INITIAL_TELEMETRY: TelemetryData = {
   oilWarning: false,
   highBeam: false,
   clutchEngaged: false,
-  fuelLevelPercent: 80,
-  odometerKm: 34226,
-  engineHoursTotal: 892,
-  engineMinutesTotal: 24,
-  engineIgnitionCycles: 3120,
-  vin: '1HD1BX1194K012345',
-  ecuPartNumber: '32124-04B',
+  activeDtcList: [],
+  historicDtcList: [],
   lastUpdated: Date.now(),
 };
 
@@ -67,7 +62,8 @@ export default function App() {
   const [logs, setLogs] = useState<PacketLog[]>([]);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'diagnostics' | 'actuators' | 'oxygen' | 'datalogger' | 'terminal'>('dashboard');
   const [dashboardStyle, setDashboardStyle] = useState<'classic' | 'analog'>('classic');
-  const [activeDtcList, setActiveDtcList] = useState<string[]>(['P0107', 'P0118']);
+  const [activeDtcList, setActiveDtcList] = useState<string[]>([]);
+  const [historicDtcList, setHistoricDtcList] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSoundMuted, setIsSoundMuted] = useState(true);
 
@@ -92,6 +88,9 @@ export default function App() {
         }));
         if (newTelemetry.activeDtcList !== undefined) {
           setActiveDtcList(newTelemetry.activeDtcList);
+        }
+        if (newTelemetry.historicDtcList !== undefined) {
+          setHistoricDtcList(newTelemetry.historicDtcList);
         }
       },
       (newPacket) => {
@@ -164,6 +163,8 @@ export default function App() {
       connectionRef.current.disconnect();
       setConnectionType('disconnected');
       setTelemetry(INITIAL_TELEMETRY);
+      setActiveDtcList([]);
+      setHistoricDtcList([]);
       soundEngine.stop();
     }
   };
@@ -199,13 +200,19 @@ export default function App() {
 
   const handleClearDTC = async () => {
     if (connectionRef.current) {
-      setStatusMessage('Apagando falhas da ECM Harley (Modo 04)...');
-      await connectionRef.current.sendCommand('ATSH 68 10 F1');
-      await connectionRef.current.sendCommand('04');
+      setStatusMessage('Executando limpeza de falhas Harley J1850...');
+      const ok = await connectionRef.current.clearDTC();
+      if (ok) {
+        setActiveDtcList([]);
+        setHistoricDtcList([]);
+        setTelemetry((prev) => ({
+          ...prev,
+          activeDtcList: [],
+          historicDtcList: [],
+          checkEngine: false,
+        }));
+      }
     }
-    setActiveDtcList([]);
-    setTelemetry((prev) => ({ ...prev, checkEngine: false }));
-    setStatusMessage('Comando 04 executado: Memória da ECM limpa.');
   };
 
   const handleToggleSound = () => {
@@ -580,8 +587,11 @@ export default function App() {
               rpm={telemetry.rpm}
               vin={telemetry.vin}
               ecuPartNumber={telemetry.ecuPartNumber}
+              ecuCalId={telemetry.ecuCalId}
+              ecuSoftwareLevel={telemetry.ecuSoftwareLevel}
               checkEngine={telemetry.checkEngine}
               activeFaults={activeDtcList}
+              historicFaults={historicDtcList}
               odometerKm={telemetry.odometerKm}
               engineHoursTotal={telemetry.engineHoursTotal}
               engineMinutesTotal={telemetry.engineMinutesTotal}
