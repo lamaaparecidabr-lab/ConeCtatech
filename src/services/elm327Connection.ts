@@ -160,7 +160,7 @@ export class ELM327Connection {
 
   /**
    * Helper to write to BLE characteristic handling writeWithoutResponse / writeWithResponse
-   * Registra imediatamente antes da transmissão o pacote em nível de byte bruto: [BLE-TX-RAW]
+   * Prioriza escrita COM resposta (writeValueWithResponse) quando suportada e registra [BLE-TX-MODE] e [BLE-TX-RAW]
    */
   private async writeBleCharacteristic(char: any, data: Uint8Array): Promise<void> {
     if (!char) throw new Error('Característica BLE de envio não disponível');
@@ -168,6 +168,23 @@ export class ELM327Connection {
 
     const hexStr = formatBytesToHex(data);
     const asciiStr = formatBytesToSafeAscii(data);
+
+    // Prioriza escrita COM resposta GATT quando 'write=true' estiver disponível
+    const hasWriteWithResponse = props.write === true && (typeof char.writeValueWithResponse === 'function' || typeof char.writeValue === 'function');
+    const hasWriteWithoutResponse = props.writeWithoutResponse === true && typeof char.writeValueWithoutResponse === 'function';
+
+    const useWithResponse = hasWriteWithResponse || !hasWriteWithoutResponse;
+    const modeName = useWithResponse ? 'writeValueWithResponse' : 'writeValueWithoutResponse';
+
+    // [BLE-TX-MODE] Log do modo de escrita GATT selecionado para esta transmissão
+    this.onPacketLog({
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toLocaleTimeString(),
+      type: 'info',
+      raw: modeName,
+      decoded: `[BLE-TX-MODE] ${modeName}`,
+      tag: 'AT',
+    });
 
     // [BLE-TX-RAW] OBRIGATÓRIO: emitido imediatamente antes da escrita no canal BLE
     this.onPacketLog({
@@ -179,23 +196,21 @@ export class ELM327Connection {
       tag: 'AT',
     });
 
-    try {
-      if (props.writeWithoutResponse && typeof char.writeValueWithoutResponse === 'function') {
-        await char.writeValueWithoutResponse(data);
-      } else if (props.write && typeof char.writeValueWithResponse === 'function') {
+    if (useWithResponse) {
+      if (typeof char.writeValueWithResponse === 'function') {
         await char.writeValueWithResponse(data);
-      } else if (typeof char.writeValueWithoutResponse === 'function') {
+      } else if (typeof char.writeValue === 'function') {
+        await char.writeValue(data);
+      } else {
+        throw new Error('Canal Bluetooth não aceita gravação de dados com resposta.');
+      }
+    } else {
+      if (typeof char.writeValueWithoutResponse === 'function') {
         await char.writeValueWithoutResponse(data);
       } else if (typeof char.writeValue === 'function') {
         await char.writeValue(data);
       } else {
-        throw new Error('Canal Bluetooth não aceita gravação de dados.');
-      }
-    } catch (e: any) {
-      if (typeof char.writeValue === 'function') {
-        await char.writeValue(data);
-      } else {
-        throw e;
+        throw new Error('Canal Bluetooth não aceita gravação de dados sem resposta.');
       }
     }
   }
