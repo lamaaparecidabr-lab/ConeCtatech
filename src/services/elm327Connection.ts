@@ -828,9 +828,19 @@ export class ELM327Connection {
    * Baseado estritamente na rotina de envio do HarleyDroid
    */
   public async requestHarleyDiagnostics(): Promise<void> {
-    const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+    // Uma única transação ativa pode controlar o ELM por vez. Sem esta trava,
+    // dois cliques/acionamentos concorrentes podem interromper ATMA, trocar o
+    // header e restaurar o monitoramento enquanto a outra consulta ainda roda.
+    if (this.isDiagnosticBusy) {
+      this.onStatusChange('Diagnóstico já está em andamento. Aguarde a conclusão da leitura atual.');
+      return;
+    }
+    this.isDiagnosticBusy = true;
 
-    this.onStatusChange('Interrompendo monitoramento contínuo (ATMA)...');
+    try {
+      const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+      this.onStatusChange('Interrompendo monitoramento contínuo (ATMA)...');
     this.stopActivePolling();
     await this.sendBreak();
     await sleep(350);
@@ -1039,8 +1049,11 @@ export class ELM327Connection {
       });
     }
 
-    // Restaura monitoramento de painel em tempo real
-    await this.resumeLiveDashboard();
+      // Restaura monitoramento de painel em tempo real
+      await this.resumeLiveDashboard();
+    } finally {
+      this.isDiagnosticBusy = false;
+    }
   }
 
   /**
