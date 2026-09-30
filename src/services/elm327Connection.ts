@@ -1076,26 +1076,34 @@ export class ELM327Connection {
 
     let confirmedCount = 0;
 
-    // 1. Limpa ECM (Nó 0x10)
-    this.onStatusChange('Apagando falhas da ECM (6C 10 F1 14)...');
-    await this.chat('ATSH 6C 10 F1', 'OK', 500);
-    const r1 = await this.chat('14', '6CF11054', 1000);
-    if (r1.success) confirmedCount++;
-    await sleep(150);
+    // 1. Limpa memória DTC do nó 0x10 (histórico)
+    this.onStatusChange('Apagando DTCs do nó 0x10 (histórico)...');
+    const h1 = await this.chat('ATSH 6C 10 F1', 'OK', 500);
+    if (h1.success) {
+      const r1 = await this.chat('14', '6CF11054', 1200);
+      if (r1.success) confirmedCount++;
+    }
+    // Mantém a mesma folga usada nas consultas DTC para evitar sobreposição no ELM/J1850.
+    await sleep(2000);
 
-    // 2. Limpa BCM/TSM (Nó 0x40)
-    this.onStatusChange('Apagando falhas do BCM/TSM (6C 40 F1 14)...');
-    await this.chat('ATSH 6C 40 F1', 'OK', 500);
-    const r2 = await this.chat('14', '6CF14054', 1000);
-    if (r2.success) confirmedCount++;
-    await sleep(150);
+    // 2. Limpa memória DTC do nó 0x40 (atual)
+    this.onStatusChange('Apagando DTCs do nó 0x40 (atual)...');
+    const h2 = await this.chat('ATSH 6C 40 F1', 'OK', 500);
+    if (h2.success) {
+      const r2 = await this.chat('14', '6CF14054', 1200);
+      if (r2.success) confirmedCount++;
+    }
+    await sleep(2000);
 
-    // 3. Limpa Velocímetro (Nó 0x60)
-    this.onStatusChange('Apagando falhas do Velocímetro (6C 60 F1 14)...');
-    await this.chat('ATSH 6C 60 F1', 'OK', 500);
-    const r3 = await this.chat('14', '6CF16054', 1000);
-    if (r3.success) confirmedCount++;
-    await sleep(200);
+    // 3. Tenta limpeza no endereço 0x60 apenas se o header for aceito.
+    // Neste veículo a leitura em 0x60 retornou NO DATA; não tratamos esse endereço como DTC atual.
+    this.onStatusChange('Tentando limpeza no endereço diagnóstico 0x60...');
+    const h3 = await this.chat('ATSH 6C 60 F1', 'OK', 500);
+    if (h3.success) {
+      const r3 = await this.chat('14', '6CF16054', 1200);
+      if (r3.success) confirmedCount++;
+    }
+    await sleep(500);
 
     // Se no simulador ou recebida resposta positiva, limpa listas locais
     if (this.connectionType === 'simulator' || confirmedCount > 0) {
