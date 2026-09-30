@@ -95,7 +95,7 @@ export default function App() {
       (newPacket) => {
         setLogs((prev) => {
           const updated = [...prev, newPacket];
-          if (updated.length > 300) return updated.slice(-300);
+          if (updated.length > 5000) return updated.slice(-5000);
           return updated;
         });
       },
