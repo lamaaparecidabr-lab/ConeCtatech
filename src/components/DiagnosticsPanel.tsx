@@ -239,7 +239,7 @@ Gerado via Harley J1850 VPW Diagnostic Tool
 
             <button
               onClick={handleClear}
-              disabled={!isConnected || (activeFaults.length === 0 && !justCleared)}
+              disabled={!isConnected || (activeFaults.length === 0 && historicFaults.length === 0 && !justCleared)}
               className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all border shadow-md disabled:opacity-30 cursor-pointer ${
                 justCleared
                   ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600'
@@ -255,7 +255,7 @@ Gerado via Harley J1850 VPW Diagnostic Tool
               <span>
                 {justCleared
                   ? 'Memória Apagada (14->54)!'
-                  : `Limpar Falhas (${activeFaults.length.toString().padStart(2, '0')})`}
+                  : `Limpar Falhas (${(activeFaults.length + historicFaults.length).toString().padStart(2, '0')})`}
               </span>
             </button>
 
@@ -962,7 +962,7 @@ Gerado via Harley J1850 VPW Diagnostic Tool
             </p>
             <ul className="list-disc list-inside space-y-1 text-neutral-300 font-mono text-[11px]">
               <li><strong className="text-orange-400">Identificação (ATSH 0C 10 F1):</strong> 3C 01/02 (P/N), 3C 03/04 (CalID), 3C 0B (Software Level), 3C 0F/10/11 (VIN).</li>
-              <li><strong className="text-orange-400">DTCs (ATSH 6C XX F1 19 52 FF 00):</strong> Nó 0x10 (DTCs Históricos ECM), Nó 0x40 (DTCs Atuais BCM/TSM), Nó 0x60 (Painel).</li>
+              <li><strong className="text-orange-400">DTCs (ATSH 6C XX F1 19 52 FF 00):</strong> resposta 0x10 = histórico, resposta 0x40 = atual; resposta 0x60 permanece separada/não classificada pelo padrão do HarleyDroid.</li>
               <li><strong className="text-orange-400">Limpeza (ATSH 6C XX F1 14):</strong> Apagamento sequencial com validação da resposta 54 antes de restaurar o monitoramento.</li>
             </ul>
             <p className="leading-relaxed text-neutral-500">
