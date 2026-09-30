@@ -668,12 +668,14 @@ export class J1850Decoder {
         const digit4 = (b1 & 0x0f).toString(16);
         const fullCode = `${prefix}${digit1}${digit2}${digit3}${digit4}`.toUpperCase();
 
-        // P0000 nunca deve ser registrado como falha
+        // P0000 nunca deve ser registrado como falha.
+        // HarleyDroid classifica a resposta pelo endereço de origem:
+        // 0x10 = histórico; 0x40 = atual; 0x60 = não classificado como DTC atual/histórico.
         if (fullCode && fullCode !== 'P0000') {
           parsedCodes.push(fullCode);
           if (node === '10') {
             this.historicDtcSet.add(fullCode);
-          } else {
+          } else if (node === '40') {
             this.activeDtcSet.add(fullCode);
           }
         }
@@ -685,13 +687,13 @@ export class J1850Decoder {
         telemetry.checkEngine = true;
       }
 
-      const isHistoric = node === '10';
+      const dtcClass = node === '10' ? 'Históricos' : node === '40' ? 'Atuais' : 'Não classificados';
       packetLog = {
         id: Math.random().toString(36).substring(2, 9),
         timestamp: new Date().toLocaleTimeString(),
         type: 'rx',
         raw: originalLine,
-        decoded: `Harley J1850 DTCs (${isHistoric ? 'Históricos' : 'Atuais'} - Nó 0x${node}${hasValidCrc ? ' [CRC J1850 Válido]' : ''}): ${
+        decoded: `Harley J1850 DTCs (${dtcClass} - Nó 0x${node}${hasValidCrc ? ' [CRC J1850 Válido]' : ''}): ${
           parsedCodes.length > 0 ? parsedCodes.join(', ') : 'Nenhuma falha gravada [OK]'
         }`,
         tag: 'DTC',

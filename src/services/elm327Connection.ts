@@ -904,13 +904,16 @@ export class ELM327Connection {
             tag: 'STATUS',
           });
         }
-        await sleep(100);
+        // HarleyDroid aguarda o timeout do comando antes de avançar para o próximo bloco 3C.
+        await sleep(500);
       }
     }
 
     // 2. CONSULTA DE DTCs HARLEY (6C 10/40/60 F1 19 52 FF 00)
-    // Nó 0x10 = ECM (DTC Histórico)
-    this.onStatusChange('Configurando cabeçalho ECM DTC (ATSH 6C 10 F1)...');
+    // A classificação histórico/atual é feita pela resposta: 0x10 = histórico, 0x40 = atual.
+    // 0x60 é consultado pelo HarleyDroid, mas não é classificado como atual/histórico pelo parser original.
+    // Endereço 0x10 = DTC histórico
+    this.onStatusChange('Configurando cabeçalho DTC histórico (ATSH 6C 10 F1)...');
     const hDtc10 = await this.chat('ATSH 6C 10 F1', 'OK', 500);
     if (!hDtc10.success) {
       this.onPacketLog({
@@ -918,11 +921,11 @@ export class ELM327Connection {
         timestamp: new Date().toLocaleTimeString(),
         type: 'error',
         raw: 'ATSH 6C 10 F1 FAIL',
-        decoded: 'Erro ao configurar cabeçalho ATSH 6C 10 F1 para consulta de DTCs da ECM.',
+        decoded: 'Erro ao configurar cabeçalho ATSH 6C 10 F1 para consulta de DTC histórico.',
         tag: 'AT',
       });
     } else {
-      this.onStatusChange('Lendo DTCs da ECM (Histórico - Nó 0x10)...');
+      this.onStatusChange('Lendo DTCs históricos (resposta 0x10)...');
       const resDtc10 = await this.chat('19 52 FF 00', '6CF11059', 2000);
       if (resDtc10.success) {
         dtcSuccessCount++;
@@ -931,7 +934,7 @@ export class ELM327Connection {
           timestamp: new Date().toLocaleTimeString(),
           type: 'rx',
           raw: resDtc10.reply.trim() || '19 52 FF 00',
-          decoded: '[DTC] Consulta Nó 0x10 (ECM): OK',
+          decoded: '[DTC] Consulta resposta 0x10 (Histórico): OK',
           tag: 'DTC',
         });
       } else {
@@ -940,15 +943,16 @@ export class ELM327Connection {
           timestamp: new Date().toLocaleTimeString(),
           type: 'error',
           raw: 'FAIL: 19 52 FF 00 (0x10)',
-          decoded: '[DTC] Consulta Nó 0x10 (ECM): TIMEOUT / SEM RESPOSTA',
+          decoded: '[DTC] Consulta resposta 0x10 (Histórico): TIMEOUT / SEM RESPOSTA',
           tag: 'DTC',
         });
       }
     }
-    await sleep(150);
+    // HarleyDroid aguarda GET_DTC_TIMEOUT (2000 ms) antes da próxima consulta.
+    await sleep(2000);
 
-    // Nó 0x40 = BCM / TSM (DTC Atual)
-    this.onStatusChange('Configurando cabeçalho BCM/TSM DTC (ATSH 6C 40 F1)...');
+    // Endereço 0x40 = DTC atual
+    this.onStatusChange('Configurando cabeçalho DTC atual (ATSH 6C 40 F1)...');
     const hDtc40 = await this.chat('ATSH 6C 40 F1', 'OK', 500);
     if (!hDtc40.success) {
       this.onPacketLog({
@@ -956,11 +960,11 @@ export class ELM327Connection {
         timestamp: new Date().toLocaleTimeString(),
         type: 'error',
         raw: 'ATSH 6C 40 F1 FAIL',
-        decoded: 'Erro ao configurar cabeçalho ATSH 6C 40 F1 para consulta de DTCs do BCM/TSM.',
+        decoded: 'Erro ao configurar cabeçalho ATSH 6C 40 F1 para consulta de DTC atual.',
         tag: 'AT',
       });
     } else {
-      this.onStatusChange('Lendo DTCs do BCM/TSM (Atuais - Nó 0x40)...');
+      this.onStatusChange('Lendo DTCs atuais (resposta 0x40)...');
       const resDtc40 = await this.chat('19 52 FF 00', '6CF14059', 2000);
       if (resDtc40.success) {
         dtcSuccessCount++;
@@ -969,7 +973,7 @@ export class ELM327Connection {
           timestamp: new Date().toLocaleTimeString(),
           type: 'rx',
           raw: resDtc40.reply.trim() || '19 52 FF 00',
-          decoded: '[DTC] Consulta Nó 0x40 (BCM/TSM): OK',
+          decoded: '[DTC] Consulta resposta 0x40 (Atual): OK',
           tag: 'DTC',
         });
       } else {
@@ -978,15 +982,15 @@ export class ELM327Connection {
           timestamp: new Date().toLocaleTimeString(),
           type: 'error',
           raw: 'FAIL: 19 52 FF 00 (0x40)',
-          decoded: '[DTC] Consulta Nó 0x40 (BCM/TSM): TIMEOUT / SEM RESPOSTA',
+          decoded: '[DTC] Consulta resposta 0x40 (Atual): TIMEOUT / SEM RESPOSTA',
           tag: 'DTC',
         });
       }
     }
-    await sleep(150);
+    await sleep(2000);
 
-    // Nó 0x60 = Velocímetro (DTCs do Painel)
-    this.onStatusChange('Configurando cabeçalho Velocímetro DTC (ATSH 6C 60 F1)...');
+    // Endereço 0x60 = terceira consulta HarleyDroid; não classificada como atual/histórica no parser original
+    this.onStatusChange('Configurando terceiro cabeçalho DTC (ATSH 6C 60 F1)...');
     const hDtc60 = await this.chat('ATSH 6C 60 F1', 'OK', 500);
     if (!hDtc60.success) {
       this.onPacketLog({
@@ -994,11 +998,11 @@ export class ELM327Connection {
         timestamp: new Date().toLocaleTimeString(),
         type: 'error',
         raw: 'ATSH 6C 60 F1 FAIL',
-        decoded: 'Erro ao configurar cabeçalho ATSH 6C 60 F1 para consulta de DTCs do Velocímetro.',
+        decoded: 'Erro ao configurar cabeçalho ATSH 6C 60 F1 para terceira consulta DTC.',
         tag: 'AT',
       });
     } else {
-      this.onStatusChange('Lendo DTCs do Velocímetro (Nó 0x60)...');
+      this.onStatusChange('Lendo terceira resposta DTC (0x60)...');
       const resDtc60 = await this.chat('19 52 FF 00', '6CF16059', 2000);
       if (resDtc60.success) {
         dtcSuccessCount++;
@@ -1007,7 +1011,7 @@ export class ELM327Connection {
           timestamp: new Date().toLocaleTimeString(),
           type: 'rx',
           raw: resDtc60.reply.trim() || '19 52 FF 00',
-          decoded: '[DTC] Consulta Nó 0x60 (Velocímetro): OK',
+          decoded: '[DTC] Consulta resposta 0x60 (não classificada): OK',
           tag: 'DTC',
         });
       } else {
@@ -1016,12 +1020,12 @@ export class ELM327Connection {
           timestamp: new Date().toLocaleTimeString(),
           type: 'error',
           raw: 'FAIL: 19 52 FF 00 (0x60)',
-          decoded: '[DTC] Consulta Nó 0x60 (Velocímetro): TIMEOUT / SEM RESPOSTA',
+          decoded: '[DTC] Consulta resposta 0x60 (não classificada): TIMEOUT / SEM RESPOSTA',
           tag: 'DTC',
         });
       }
     }
-    await sleep(150);
+    await sleep(2000);
 
     // 3. Resumo Final da Varredura
     const totalSuccess = idSuccessCount + dtcSuccessCount;
