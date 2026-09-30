@@ -189,6 +189,7 @@ export default function App() {
       setStatusMessage('Executando limpeza de falhas Harley J1850...');
       const ok = await connectionRef.current.clearDTC();
       if (ok) {
+        // Limpa a apresentação local imediatamente, como confirmação visual da operação.
         setActiveDtcList([]);
         setHistoricDtcList([]);
         setTelemetry((prev) => ({
@@ -197,6 +198,13 @@ export default function App() {
           historicDtcList: [],
           checkEngine: false,
         }));
+
+        // HarleyDroid restaura a leitura normal 2 s após o comando de limpeza.
+        // Fazemos a releitura para que uma falha ainda presente reapareça como CURRENT/HISTORIC
+        // conforme a resposta real da moto, em vez de manter a UI artificialmente zerada.
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        setStatusMessage('Revalidando falhas após a limpeza...');
+        await connectionRef.current.requestHarleyDiagnostics();
       }
     }
   };
