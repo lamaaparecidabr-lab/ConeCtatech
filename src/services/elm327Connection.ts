@@ -86,6 +86,7 @@ export class ELM327Connection {
 
   // Incoming data listeners for request/expect flow (HarleyDroid chat mechanism)
   private responseListeners: Array<(line: string) => void> = [];
+  private isDiagnosticBusy: boolean = false;
 
   // Persistent telemetry state - no fabricated data in real mode
   private currentTelemetryState: TelemetryData = {
@@ -748,6 +749,9 @@ export class ELM327Connection {
         return true;
       } else if (this.connectionType === 'simulator') {
         this.simStreamPaused = true;
+        setTimeout(() => {
+          this.handleIncomingData(this.textEncoder.encode('>\r\n'));
+        }, 50);
         return true;
       }
     } catch (e) {

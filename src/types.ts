@@ -14,6 +14,8 @@ export interface TelemetryData {
   highBeam: boolean;
   clutchEngaged: boolean;
   fuelLevelPercent?: number;
+  fuelLevelRaw?: number;   // escala J1850 Harley 0–15
+  fuelLow?: boolean;
   odometerKm?: number;
   engineHoursTotal?: number;
   engineMinutesTotal?: number;

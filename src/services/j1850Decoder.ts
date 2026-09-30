@@ -392,7 +392,44 @@ export class J1850Decoder {
     }
 
     // =========================================================================
-    // 8. HARLEY CHECK ENGINE / MIL LAMP (Frame 68 88 10 83 = ON, 68 88 10 03 = OFF)
+    // 8. HARLEY NÍVEL DE COMBUSTÍVEL / FUEL GAUGE (Frame A8 83 61 12 dX ou A8 83 61 92 dX)
+    // HarleyDroid (J1850.java): (x & 0xffffff7f) == 0xa8836112
+    // in[4] & 0x0f: fuelLevelRaw (escala bruta Harley 0–15)
+    // (in[3] & 0x80) != 0: fuelLow (indicador de combustível baixo/reserva)
+    // O último byte (ex: F0 em A8 83 61 12 EF F0) é CRC J1850 e NÃO é interpretado como dado.
+    // =========================================================================
+    else if (
+      cleanHex.includes('a8836112') ||
+      cleanHex.includes('a8836192') ||
+      (bytes.length >= 5 && bytes[0] === 0xa8 && bytes[1] === 0x83 && bytes[2] === 0x61 && (bytes[3] & 0x7f) === 0x12)
+    ) {
+      const idx12 = cleanHex.indexOf('a8836112');
+      const idx92 = cleanHex.indexOf('a8836192');
+      const idx = idx12 !== -1 ? idx12 : idx92;
+      const byteOffset = idx !== -1 ? Math.floor(idx / 2) : 0;
+
+      if (bytes.length >= byteOffset + 5) {
+        const fourthByte = bytes[byteOffset + 3];
+        const dataByte = bytes[byteOffset + 4];
+        const fuelLevelRaw = dataByte & 0x0f;
+        const fuelLow = (fourthByte & 0x80) !== 0;
+
+        telemetry.fuelLevelRaw = fuelLevelRaw;
+        telemetry.fuelLow = fuelLow;
+
+        packetLog = {
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'rx',
+          raw: originalLine,
+          decoded: `Harley J1850 Combustível: nível bruto ${fuelLevelRaw}/15 | Reserva/Baixo: ${fuelLow ? 'SIM' : 'NÃO'}`,
+          tag: 'STATUS',
+        };
+      }
+    }
+
+    // =========================================================================
+    // 9. HARLEY CHECK ENGINE / MIL LAMP (Frame 68 88 10 83 = ON, 68 88 10 03 = OFF)
     // =========================================================================
     else if (cleanHex.includes('68881083')) {
       telemetry.checkEngine = true;
