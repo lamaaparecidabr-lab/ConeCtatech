@@ -308,8 +308,10 @@ export default function App() {
 
             <button
               onClick={() => {
+                // Abrir a tela de diagnóstico não deve iniciar uma segunda varredura
+                // automaticamente. A leitura é iniciada explicitamente pelo botão
+                // do DiagnosticsPanel (onReadDTC).
                 setActiveTab('diagnostics');
-                if (isConnected) requisitarDadosFiltroDiag();
               }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 whitespace-nowrap cursor-pointer ${
                 activeTab === 'diagnostics'
