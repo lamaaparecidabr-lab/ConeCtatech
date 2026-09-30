@@ -725,10 +725,12 @@ export class ELM327Connection {
   }
 
   /**
-   * Sends a break / abort signal (single space or CR) to stop ATMA streaming on ELM327
+   * Sends a break / abort signal (CR only) to stop ATMA streaming on ELM327.
+   * Matches HarleyDroid's empty-line abort semantics and avoids sending
+   * an extra character that can leave/restart monitor mode on some ELM327 clones.
    */
   public async sendBreak(): Promise<boolean> {
-    const raw = ' \r';
+    const raw = '\r';
     try {
       if (this.connectionType === 'bluetooth' && this.txCharacteristic) {
         await this.writeBleCharacteristic(this.txCharacteristic, this.textEncoder.encode(raw));
