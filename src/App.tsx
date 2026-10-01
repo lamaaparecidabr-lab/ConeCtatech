@@ -110,9 +110,37 @@ export default function App() {
       },
       (newPacket) => {
         setLogs((prev) => {
+          // Mantém o histórico útil para diagnóstico sem deixar o tráfego bruto do
+          // transporte/ATMA apagar Scanner, DTC, erros e respostas ativas.
+          const decoded = newPacket.decoded || '';
+          const isVerboseTransport =
+            decoded.startsWith('[RX-CHUNK]') ||
+            decoded.startsWith('[RX-LINE]') ||
+            decoded.startsWith('[BLE-RX-RAW]') ||
+            decoded.startsWith('[SERIAL-RX-RAW]') ||
+            decoded.startsWith('[BLE-TX-RAW]') ||
+            decoded.startsWith('[SERIAL-TX-RAW]') ||
+            decoded.startsWith('[BLE-TX-MODE]');
+
+          // Tráfego de transporte foi essencial para validar o buffer RX, mas não
+          // pertence ao log operacional normal. Frames decodificados, desconhecidos,
+          // comandos, DTCs, erros e eventos do Scanner continuam preservados.
+          if (isVerboseTransport) return prev;
+
           const updated = [...prev, newPacket];
-          if (updated.length > 5000) return updated.slice(-5000);
-          return updated;
+          const MAX_LOGS = 5000;
+          if (updated.length <= MAX_LOGS) return updated;
+
+          // Ao atingir o limite, descarte primeiro telemetria repetitiva; nunca
+          // sacrifique eventos de diagnóstico para abrir espaço para RPM/velocidade/temp.
+          const discardableIndex = updated.findIndex((p) =>
+            p.type !== 'error' && ['RPM', 'SPEED', 'TEMP'].includes(p.tag || '')
+          );
+          if (discardableIndex >= 0) {
+            updated.splice(discardableIndex, 1);
+            return updated;
+          }
+          return updated.slice(-MAX_LOGS);
         });
       },
       (msg, isErr) => {
