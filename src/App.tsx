@@ -332,14 +332,6 @@ export default function App() {
           </div>
         </div>
 
-        {uiSkin !== 'original' && (
-          <div className="skin-switcher" aria-label="Tema da interface">
-            <button onClick={() => setUiSkin('orange')} className={uiSkin === 'orange' ? 'active' : ''}>Orange</button>
-            <button onClick={() => setUiSkin('dark')} className={uiSkin === 'dark' ? 'active' : ''}>Dark</button>
-            <button onClick={() => setUiSkin('original')}>Original</button>
-          </div>
-        )}
-
         {/* Row 2: Horizontally Scrollable Navigation Strip (Stories / Tabs style) */}
         <div className="app-nav-wrap max-w-6xl mx-auto mt-2 pt-2 border-t border-neutral-900/90 w-full overflow-hidden">
           <nav className="app-nav flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth touch-pan-x py-0.5">
@@ -422,6 +414,15 @@ export default function App() {
               <TerminalIcon className="w-3.5 h-3.5" />
               <span>Terminal</span>
             </button>
+
+            <div className="appearance-menu">
+              <span className="appearance-label">Aparência</span>
+              <div className="appearance-options" aria-label="Tema da interface">
+                <button type="button" onClick={() => setUiSkin('original')} className={uiSkin === 'original' ? 'active' : ''}>Original</button>
+                <button type="button" onClick={() => setUiSkin('orange')} className={uiSkin === 'orange' ? 'active' : ''}>Orange</button>
+                <button type="button" onClick={() => setUiSkin('dark')} className={uiSkin === 'dark' ? 'active' : ''}>Dark</button>
+              </div>
+            </div>
           </nav>
         </div>
 
@@ -457,7 +458,7 @@ export default function App() {
                 Modo Demonstração / Simulador
               </span>
             )}
-            <span className="hidden sm:inline">Protocolo: VPW Harley (10.4 kbps)</span>
+            <span className="hidden sm:inline">Comunicação: {isConnected ? 'Ativa' : 'Inativa'}</span>
           </div>
         </div>
       </header>
@@ -732,14 +733,12 @@ export default function App() {
         config={config}
         onChangeConfig={setConfig}
         currentType={connectionType}
-        uiSkin={uiSkin}
-        onChangeUiSkin={setUiSkin}
       />
 
       {/* Footer */}
       <footer className="app-footer border-t border-neutral-900 bg-[#0d0e12] py-4 px-4 text-center text-xs text-neutral-500">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>ConeCtaHarley · Monitor VPW Harley para PC, Mac, Linux, Android e iPhone</span>
+          <span>ConeCtaHarley · Diagnóstico e monitoramento para PC, Mac, Linux, Android e iPhone</span>
           <span className="font-mono text-[11px] text-neutral-600">
             Compatível com adaptadores ELM327 Bluetooth / USB & Harley-Davidson EFI
           </span>

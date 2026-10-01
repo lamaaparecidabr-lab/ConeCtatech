@@ -108,3 +108,20 @@
   .skin-orange .skin-switcher,
   .skin-dark .skin-switcher { margin-top:8px; }
 }
+
+/* Appearance selector: visible in the navigation area on every skin. */
+.appearance-menu { display:flex; align-items:center; gap:8px; margin-left:auto; padding-left:8px; }
+.appearance-label { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:#8b8f98; }
+.appearance-options { display:flex; gap:4px; }
+.appearance-options button { border:1px solid #30343a; background:#111317; color:#9ca3af; border-radius:7px; padding:5px 8px; font-size:10px; font-weight:800; cursor:pointer; }
+.appearance-options button.active { color:#fff; border-color:var(--skin-accent,#ff6600); box-shadow:0 0 0 1px rgba(var(--skin-accent-rgb,255,102,0),.18); }
+@media (min-width: 900px) {
+  .skin-orange .appearance-menu, .skin-dark .appearance-menu { margin:10px 0 0; padding:12px 0 0; border-top:1px solid rgba(255,255,255,.06); flex-direction:column; align-items:stretch; }
+  .skin-orange .appearance-options, .skin-dark .appearance-options { width:100%; }
+  .skin-orange .appearance-options button, .skin-dark .appearance-options button { flex:1; padding:6px 4px; }
+  .diagnostics-sidebar { scrollbar-width:thin; scrollbar-color:#3a3d43 transparent; }
+}
+@media (max-width: 899px) {
+  .appearance-menu { margin-left:0; flex-shrink:0; }
+  .appearance-label { display:none; }
+}
