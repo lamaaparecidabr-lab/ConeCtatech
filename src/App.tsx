@@ -37,20 +37,28 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 type UiSkin = 'original' | 'orange' | 'dark';
 
 const EngineMark = () => (
-  <svg viewBox="0 0 64 64" className="w-10 h-10" aria-hidden="true">
+  <svg viewBox="0 0 86 64" className="w-14 h-11" aria-hidden="true">
+    {/* V-Twin frontal simplificado, inspirado apenas na silhueta enviada pelo usuário. */}
     <g fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 15l10 8-8 23-9-4 7-27Zm28 0-10 8 8 23 9-4-7-27Z"/>
-      <circle cx="32" cy="33" r="10"/><circle cx="32" cy="33" r="4"/>
-      <path d="M25 17h14M22 48h20M16 24l-7-5M48 24l7-5"/>
+      <path d="M10 12h22l8 9-10 10-18-7zM76 12H54l-8 9 10 10 18-7z" />
+      <path d="M17 18l17 19M69 18L52 37M22 22l15 17M64 22L49 39" />
+      <circle cx="43" cy="30" r="13" />
+      <path d="M35 41l-7 15h30l-7-15M43 43v13M36 50h14" />
+      <path d="M30 57h26" />
     </g>
   </svg>
 );
 
 const MotorcycleMark = () => (
-  <svg viewBox="0 0 80 44" className="w-14 h-9" aria-hidden="true">
-    <g fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="17" cy="31" r="9"/><circle cx="63" cy="31" r="9"/>
-      <path d="M17 31l13-15h14l10 15M29 16l9 15H17M38 31h16M44 16l8-7h9M51 9l7 8"/>
+  <svg viewBox="0 0 104 58" className="w-16 h-10" aria-hidden="true">
+    {/* Touring/bagger simplificada voltada para a direita, inspirada na referência enviada pelo usuário. */}
+    <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="23" cy="43" r="11" /><circle cx="82" cy="43" r="11" />
+      <path d="M23 43l18-18h18l13 18M41 25l8 18H23M49 43h23" />
+      <path d="M50 24c6-12 18-15 28-8l5 8-10 4H55zM76 17l9-7 8 1" />
+      <path d="M83 24l-1 19M87 20l8 23M57 26l7-9" />
+      <path d="M31 22h14l-5-7H29zM19 29h13" />
+      <path d="M13 31h14M11 35h11" />
     </g>
   </svg>
 );
