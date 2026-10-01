@@ -168,7 +168,7 @@ export const GaugeTachometer: React.FC<GaugeTachometerProps> = ({ rpm, maxRpm = 
             textAnchor="middle"
             fontFamily="sans-serif"
           >
-            HARLEY-DAVIDSON
+            ConeCtaHarley
           </text>
 
           {/* Needle */}

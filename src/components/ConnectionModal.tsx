@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bluetooth, Usb, Cpu, X, ShieldAlert, Check, HelpCircle } from 'lucide-react';
+import { Bluetooth, Usb, Cpu, X, ShieldAlert, HelpCircle } from 'lucide-react';
 import { ConnectionConfig, ConnectionType } from '../types';
 
 interface ConnectionModalProps {
@@ -11,8 +11,6 @@ interface ConnectionModalProps {
   config: ConnectionConfig;
   onChangeConfig: (newConfig: ConnectionConfig) => void;
   currentType: ConnectionType;
-  uiSkin: 'original' | 'orange' | 'dark';
-  onChangeUiSkin: (skin: 'original' | 'orange' | 'dark') => void;
 }
 
 export const ConnectionModal: React.FC<ConnectionModalProps> = ({
@@ -24,8 +22,6 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
   config,
   onChangeConfig,
   currentType,
-  uiSkin,
-  onChangeUiSkin,
 }) => {
   if (!isOpen) return null;
 
@@ -40,7 +36,7 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
             </div>
             <div>
               <h2 className="text-sm sm:text-base font-bold text-neutral-100">ConeCtaHarley · Conexão ELM327</h2>
-              <p className="text-[11px] sm:text-xs text-neutral-400">Comunicação VPW Harley com a ECU Harley-Davidson</p>
+              <p className="text-[11px] sm:text-xs text-neutral-400">Comunicação com a central eletrônica Harley-Davidson</p>
             </div>
           </div>
           <button
@@ -169,32 +165,6 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Aparência: preserva a skin original e permite escolher as novas identidades */}
-          <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-3.5 sm:p-4 space-y-3">
-            <span className="text-xs font-mono font-bold text-neutral-300 uppercase tracking-wider block">Tema da Interface</span>
-            <div className="grid grid-cols-3 gap-2">
-              {([
-                ['original', 'Original'],
-                ['orange', 'ConeCtaHarley Orange'],
-                ['dark', 'ConeCtaHarley Dark'],
-              ] as const).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => onChangeUiSkin(value)}
-                  className={`px-2 py-2.5 rounded-lg border text-[11px] font-bold transition-all ${
-                    uiSkin === value
-                      ? value === 'dark' ? 'border-red-500 bg-red-950/40 text-red-300' : value === 'orange' ? 'border-orange-500 bg-orange-950/40 text-orange-300' : 'border-sky-500 bg-sky-950/40 text-sky-300'
-                      : 'border-neutral-700 bg-black/30 text-neutral-400 hover:text-neutral-200'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <p className="text-[10px] text-neutral-500">A escolha fica salva neste dispositivo. A skin altera somente a apresentação; scanner, telemetria e diagnóstico permanecem os mesmos.</p>
           </div>
 
           {/* Harley-Davidson Pinout Help */}

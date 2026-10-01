@@ -189,7 +189,7 @@ Gerado via Harley VPW Diagnostic Tool
       {/* ========================================================
           BARRA LATERAL FIXA / STICKY (Painel de Controle e Navegação)
          ======================================================== */}
-      <aside className="w-full lg:w-80 shrink-0 lg:sticky lg:top-24 space-y-4">
+      <aside className="w-full lg:w-80 shrink-0 lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto diagnostics-sidebar space-y-4">
         {/* Card Principal da Barra Lateral */}
         <div className="bg-[#14151b] border border-neutral-800 rounded-2xl p-5 shadow-2xl space-y-4">
           {/* Header da Barra */}
@@ -203,7 +203,7 @@ Gerado via Harley VPW Diagnostic Tool
                   Scanner Harley
                 </h2>
                 <div className="text-[11px] font-mono text-neutral-400">
-                  VPW Harley · Delphi EFI
+                  Diagnóstico · Delphi EFI
                 </div>
               </div>
             </div>
@@ -217,7 +217,7 @@ Gerado via Harley VPW Diagnostic Tool
                   }`}
                 />
                 <span className={isConnected ? 'text-emerald-400' : 'text-neutral-400'}>
-                  {isConnected ? 'Ativo (10.4 kbps)' : 'Desconectado'}
+                  {isConnected ? 'Ativo' : 'Desconectado'}
                 </span>
               </span>
             </div>
@@ -395,7 +395,7 @@ Gerado via Harley VPW Diagnostic Tool
             <div className="flex items-center gap-2">
               <Wrench className="w-5 h-5 text-orange-500" />
               <h2 className="text-base font-bold text-neutral-100 uppercase tracking-wide">
-                Scanner de Diagnóstico Harley-Davidson (Harley / OBD2)
+                Scanner de Diagnóstico Harley-Davidson
               </h2>
             </div>
             <p className="text-xs text-neutral-400 mt-1">
@@ -955,15 +955,15 @@ Gerado via Harley VPW Diagnostic Tool
           <div className="bg-[#14151b] border border-neutral-800 rounded-2xl p-5 text-xs text-neutral-400 space-y-3">
             <div className="font-bold text-neutral-200 uppercase tracking-wider flex items-center gap-2">
               <Info className="w-4 h-4 text-orange-500" />
-              Protocolo Harley-Davidson VPW
+              Comunicação e Diagnóstico
             </div>
             <p className="leading-relaxed">
-              O diagnóstico Harley-Davidson opera no barramento SAE VPW Harley (10.4 kbps) através de comandos específicos mapeados pela comunidade:
+              O ConeCtaHarley realiza comunicação direta com os módulos compatíveis da motocicleta para identificação, leitura de falhas, monitoramento e diagnóstico.
             </p>
-            <ul className="list-disc list-inside space-y-1 text-neutral-300 font-mono text-[11px]">
-              <li><strong className="text-orange-400">Identificação (ATSH 0C 10 F1):</strong> 3C 01/02 (P/N), 3C 03/04 (CalID), 3C 0B (Software Level), 3C 0F/10/11 (VIN).</li>
-              <li><strong className="text-orange-400">DTCs (ATSH 6C XX F1 19 52 FF 00):</strong> resposta 0x10 = histórico, resposta 0x40 = atual; resposta 0x60 permanece separada/não classificada pelo padrão do HarleyDroid.</li>
-              <li><strong className="text-orange-400">Limpeza (ATSH 6C XX F1 14):</strong> Apagamento sequencial com validação da resposta 54 antes de restaurar o monitoramento.</li>
+            <ul className="list-disc pl-5 space-y-1 text-neutral-300">
+              <li><strong className="text-orange-400">Identificação:</strong> leitura dos dados disponíveis da central eletrônica e da motocicleta.</li>
+              <li><strong className="text-orange-400">Falhas:</strong> leitura e classificação dos códigos de diagnóstico disponíveis nos módulos compatíveis.</li>
+              <li><strong className="text-orange-400">Limpeza:</strong> apagamento controlado das falhas quando suportado pela central conectada.</li>
             </ul>
             <p className="leading-relaxed text-neutral-500">
               Para retornar ao monitoramento de rotação, velocidade e marcha em tempo real, clique na aba Painel no topo da tela.
