@@ -1076,31 +1076,39 @@ export class ELM327Connection {
     await sleep(2000);
 
     // 3. LEITURA ATIVA TTS/HDC2 - DPID 0x11 (somente leitura)
-    // Evidência TTS: HDC2DataCollector monta J1850 service 0x2A com subfunção 0x01 + DPID.
+    // Evidência TTS/HDC2 decompilada: Mode 0x2A usa rate 0x01 e exatamente 6 slots de DPID.
+    // Slots não usados são preenchidos com 0xFF. Para apenas DPID 0x11: 2A 01 11 FF FF FF FF FF.
     // DPID 0x11 retorna: RPM(2), Desired Idle(1), Battery(1), MAP(1), TPS(1).
     // Executada uma única vez durante a varredura; não altera o polling/ATMA contínuo.
     let activeDpid11Success = 0;
     this.onStatusChange('Lendo dados ativos ECM (TTS DPID 0x11: bateria/MAP/TPS)...');
     const hActive11 = await this.chat('ATSH 6C 10 F1', 'OK', 500);
     if (hActive11.success) {
-      const resActive11 = await this.chat('2A 01 11', '6CF1106A11', 1500);
+      const resActive11 = await this.chat('2A 01 11 FF FF FF FF FF', '6CF1106A11', 1500);
       if (resActive11.success) {
         activeDpid11Success = 1;
         this.onPacketLog({
           id: Math.random().toString(36).substring(2, 9),
           timestamp: new Date().toLocaleTimeString(),
           type: 'rx',
-          raw: resActive11.reply.trim() || '2A 01 11',
+          raw: resActive11.reply.trim() || '2A 01 11 FF FF FF FF FF',
           decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11] Resposta ECM recebida e encaminhada ao decoder.',
           tag: 'STATUS',
         });
       } else {
+        const normalizedActive11Reply = resActive11.reply.toUpperCase().replace(/[\s:]/g, '');
+        const negativeResponseMatch = normalizedActive11Reply.match(/6CF1107F2A(?:[0-9A-F]{2})*?([0-9A-F]{2})(?:[0-9A-F]{2})?$/);
+        const isNegativeResponse = normalizedActive11Reply.includes('6CF1107F2A');
+        const responseCode = negativeResponseMatch?.[1];
+
         this.onPacketLog({
           id: Math.random().toString(36).substring(2, 9),
           timestamp: new Date().toLocaleTimeString(),
-          type: 'info',
-          raw: '2A 01 11 -> SEM RESPOSTA',
-          decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11] ECM não respondeu. Nenhum valor foi fabricado ou substituído.',
+          type: isNegativeResponse ? 'error' : 'info',
+          raw: resActive11.reply.trim() || '2A 01 11 FF FF FF FF FF -> SEM RESPOSTA',
+          decoded: isNegativeResponse
+            ? `[SOURCE:ECM-ACTIVE][DPID:0x11] ECM respondeu negativamente ao Mode 0x2A${responseCode ? ` (código 0x${responseCode})` : ''}. Resposta preservada para diagnóstico; nenhum valor foi fabricado ou substituído.`
+            : '[SOURCE:ECM-ACTIVE][DPID:0x11] ECM não respondeu. Nenhum valor foi fabricado ou substituído.',
           tag: 'STATUS',
         });
       }

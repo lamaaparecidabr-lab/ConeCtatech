@@ -626,7 +626,7 @@ export class J1850Decoder {
 
     // =========================================================================
     // 10. HARLEY ACTIVE DATA - TTS/HDC2 DPID 0x11
-    // Request: 6C 10 F1 2A 01 11
+    // Request: 6C 10 F1 2A 01 11 FF FF FF FF FF
     // Response: 6C F1 10 6A 11 [RPM_H] [RPM_L] [DesiredIdle] [Battery] [MAP] [TPS] [CRC]
     // TTS HD-DatastreamConfig: DPID 0x11 -> $2001,$2002,$2003,$2004,$2005.
     // =========================================================================
