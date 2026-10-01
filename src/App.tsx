@@ -13,6 +13,8 @@ import {
   Sliders,
   Activity,
   FileSpreadsheet,
+  Menu,
+  Palette,
 } from 'lucide-react';
 import { TelemetryData, ConnectionConfig, ConnectionType, PacketLog } from './types';
 import { ELM327Connection } from './services/elm327Connection';
@@ -70,6 +72,7 @@ export default function App() {
   const [historicDtcList, setHistoricDtcList] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSoundMuted, setIsSoundMuted] = useState(true);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [uiSkin, setUiSkin] = useState<UiSkin>(() => {
     const saved = localStorage.getItem('conectaharley-ui-skin');
     return saved === 'orange' || saved === 'dark' || saved === 'original' ? saved : 'original';
@@ -269,7 +272,7 @@ export default function App() {
           </div>
 
           {/* Right Action Icons & Connect Button */}
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <div className="app-header-actions flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* O Ícone da Injeção (Botão MIL Alternador de Telas) */}
             <MilButton
               isActive={telemetry.checkEngine}
@@ -315,7 +318,32 @@ export default function App() {
           </div>
         </div>
 
-        {/* Row 2: Horizontally Scrollable Navigation Strip (Stories / Tabs style) */}
+        {/* Mobile-only navigation: keep desktop/tablet navigation unchanged. */}
+        <div className="mobile-nav-shell">
+          <div className="mobile-nav-primary">
+            <button onClick={() => { setActiveTab('dashboard'); setMobileMoreOpen(false); if (isConnected) retornarModoContinuo(); }} className={activeTab === 'dashboard' ? 'active' : ''}><Gauge /><span>Painel</span></button>
+            <button onClick={() => { setActiveTab('diagnostics'); setMobileMoreOpen(false); }} className={activeTab === 'diagnostics' ? 'active' : ''}><Wrench /><span>Diagnóstico</span></button>
+            <button onClick={() => setMobileMoreOpen((v) => !v)} className={mobileMoreOpen || ['actuators','oxygen','datalogger','terminal'].includes(activeTab) ? 'active' : ''}><Menu /><span>Mais</span></button>
+          </div>
+          {mobileMoreOpen && (
+            <div className="mobile-more-panel">
+              <button onClick={() => { setActiveTab('actuators'); setMobileMoreOpen(false); }}><Sliders /><span>Atuadores</span></button>
+              <button onClick={() => { setActiveTab('oxygen'); setMobileMoreOpen(false); }}><Activity /><span>Sondas O₂ / AFR</span></button>
+              <button onClick={() => { setActiveTab('datalogger'); setMobileMoreOpen(false); }}><FileSpreadsheet /><span>Datalogger</span></button>
+              <button onClick={() => { setActiveTab('terminal'); setMobileMoreOpen(false); }}><TerminalIcon /><span>Terminal</span></button>
+              <div className="mobile-appearance">
+                <span><Palette /> Aparência</span>
+                <div>
+                  <button type="button" onClick={() => setUiSkin('original')} className={uiSkin === 'original' ? 'active' : ''}>Original</button>
+                  <button type="button" onClick={() => setUiSkin('orange')} className={uiSkin === 'orange' ? 'active' : ''}>Orange</button>
+                  <button type="button" onClick={() => setUiSkin('dark')} className={uiSkin === 'dark' ? 'active' : ''}>Dark</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Row 2: Desktop/tablet navigation strip */}
         <div className="app-nav-wrap max-w-6xl mx-auto mt-2 pt-2 border-t border-neutral-900/90 w-full overflow-hidden">
           <nav className="app-nav flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth touch-pan-x py-0.5">
             <button

@@ -125,3 +125,91 @@
   .appearance-menu { margin-left:0; flex-shrink:0; }
   .appearance-label { display:none; }
 }
+
+/* ==========================================================
+   Rev6 — mobile header/navigation only.
+   Desktop (>=900px) remains exactly on the existing layout.
+   ========================================================== */
+.mobile-nav-shell { display:none; }
+
+@media (max-width: 899px) {
+  .app-header {
+    position: sticky !important;
+    top: 0;
+    padding: 10px 12px 9px !important;
+  }
+
+  .app-header-main {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    align-items: stretch !important;
+  }
+
+  .app-brand {
+    width: 100%;
+    min-width: 0;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 8px !important;
+    overflow: visible;
+  }
+
+  .skin-orange .app-brand,
+  .skin-dark .app-brand {
+    flex-direction: column;
+    text-align: center;
+    gap: 4px !important;
+  }
+
+  .skin-orange .skin-logo img { height: 58px !important; max-width: 150px; }
+  .skin-dark .skin-logo img { height: 54px !important; max-width: 168px; }
+  .skin-orange .skin-wordmark { font-size: 1.12rem; }
+  .skin-dark .skin-wordmark { font-size: 1rem; }
+
+  .app-header-actions {
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: auto minmax(0,1fr) auto minmax(112px,auto);
+    gap: 7px !important;
+    align-items: center;
+  }
+  .app-header-actions > * { min-width: 0; }
+  .app-header-actions #btn-conectar { width:100%; justify-content:center; padding-left:10px; padding-right:10px; }
+
+  /* Hide desktop nav/skin buttons on phones; mobile menu below replaces them. */
+  .app-nav-wrap { display:none !important; }
+  .mobile-nav-shell { display:block; width:100%; margin-top:9px; padding-top:9px; border-top:1px solid #202226; }
+  .mobile-nav-primary { display:grid; grid-template-columns:1fr 1.25fr .8fr; gap:7px; }
+  .mobile-nav-primary button,
+  .mobile-more-panel > button {
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    min-height:42px; border:1px solid #22262b; border-radius:10px;
+    background:#121418; color:#a4a9b0; font-size:12px; font-weight:800;
+  }
+  .mobile-nav-primary button svg,
+  .mobile-more-panel > button svg { width:16px; height:16px; }
+  .mobile-nav-primary button.active { color:#fff; background:var(--skin-accent,#ff6600); border-color:var(--skin-accent,#ff6600); box-shadow:0 5px 16px rgba(var(--skin-accent-rgb,255,102,0),.22); }
+
+  .mobile-more-panel {
+    margin-top:8px; padding:9px; display:grid; grid-template-columns:1fr 1fr; gap:7px;
+    border:1px solid #25282d; border-radius:12px; background:rgba(12,14,17,.98); box-shadow:0 12px 30px rgba(0,0,0,.34);
+  }
+  .mobile-more-panel > button { justify-content:flex-start; padding:0 11px; }
+  .mobile-appearance { grid-column:1 / -1; border-top:1px solid #24272c; padding-top:9px; }
+  .mobile-appearance > span { display:flex; align-items:center; gap:6px; color:#9da3aa; font-size:11px; font-weight:800; margin-bottom:7px; }
+  .mobile-appearance > span svg { width:15px; height:15px; }
+  .mobile-appearance > div { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .mobile-appearance button { min-height:34px; border:1px solid #30343a; border-radius:8px; background:#111317; color:#9ca3af; font-size:11px; font-weight:800; }
+  .mobile-appearance button.active { color:#fff; border-color:var(--skin-accent,#ff6600); background:rgba(var(--skin-accent-rgb,255,102,0),.14); }
+
+  .app-status { margin-top:9px !important; padding-top:8px !important; }
+}
+
+@media (max-width: 390px) {
+  .app-header-actions { grid-template-columns:auto minmax(0,1fr) auto minmax(104px,auto); gap:5px !important; }
+  .skin-orange .skin-logo img { height:52px !important; }
+  .skin-dark .skin-logo img { height:48px !important; }
+  .mobile-nav-primary { grid-template-columns:1fr 1.2fr .72fr; gap:5px; }
+  .mobile-nav-primary button { font-size:11px; gap:4px; }
+}
