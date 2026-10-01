@@ -33,6 +33,28 @@ import { DataloggerPanel } from './components/DataloggerPanel';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 
+
+type UiSkin = 'original' | 'orange' | 'dark';
+
+const EngineMark = () => (
+  <svg viewBox="0 0 64 64" className="w-10 h-10" aria-hidden="true">
+    <g fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 15l10 8-8 23-9-4 7-27Zm28 0-10 8 8 23 9-4-7-27Z"/>
+      <circle cx="32" cy="33" r="10"/><circle cx="32" cy="33" r="4"/>
+      <path d="M25 17h14M22 48h20M16 24l-7-5M48 24l7-5"/>
+    </g>
+  </svg>
+);
+
+const MotorcycleMark = () => (
+  <svg viewBox="0 0 80 44" className="w-14 h-9" aria-hidden="true">
+    <g fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="17" cy="31" r="9"/><circle cx="63" cy="31" r="9"/>
+      <path d="M17 31l13-15h14l10 15M29 16l9 15H17M38 31h16M44 16l8-7h9M51 9l7 8"/>
+    </g>
+  </svg>
+);
+
 const INITIAL_TELEMETRY: TelemetryData = {
   rpm: 0,
   speedKmH: 0,
@@ -65,10 +87,18 @@ export default function App() {
   const [historicDtcList, setHistoricDtcList] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSoundMuted, setIsSoundMuted] = useState(true);
+  const [uiSkin, setUiSkin] = useState<UiSkin>(() => {
+    const saved = localStorage.getItem('conectaharley-ui-skin');
+    return saved === 'orange' || saved === 'dark' || saved === 'original' ? saved : 'original';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('conectaharley-ui-skin', uiSkin);
+  }, [uiSkin]);
 
   // Configuration
   const [config, setConfig] = useState<ConnectionConfig>({
-    protocol: 'ATSP2', // SAE J1850 VPW (standard for Harley)
+    protocol: 'ATSP2', // SAE VPW Harley (standard for Harley)
     speedUnit: 'kmh',
     tempUnit: 'celsius',
     monitorMode: true,
@@ -186,7 +216,7 @@ export default function App() {
 
   const handleClearDTC = async () => {
     if (connectionRef.current) {
-      setStatusMessage('Executando limpeza de falhas Harley J1850...');
+      setStatusMessage('Executando limpeza de falhas Harley...');
       const ok = await connectionRef.current.clearDTC();
       if (ok) {
         // Limpa a apresentação local imediatamente, como confirmação visual da operação.
@@ -224,29 +254,35 @@ export default function App() {
   const isConnected = connectionType !== 'disconnected';
 
   return (
-    <div className="min-h-screen bg-[#0d0d0d] text-neutral-100 flex flex-col font-sans selection:bg-orange-500/30 overflow-x-hidden w-full max-w-full">
+    <div className={`app-shell skin-${uiSkin} min-h-screen bg-[#0d0d0d] text-neutral-100 flex flex-col font-sans selection:bg-orange-500/30 overflow-x-hidden w-full max-w-full`}>
       {/* Top Header com Botão MIL Injeção idêntico ao original */}
-      <header className="border-b border-neutral-900 bg-[#121212] sticky top-0 z-40 px-3 sm:px-4 py-2.5 sm:py-3 shadow-md w-full">
+      <header className="app-header border-b border-neutral-900 bg-[#121212] sticky top-0 z-40 px-3 sm:px-4 py-2.5 sm:py-3 shadow-md w-full">
         {/* Row 1: Brand & Top Action Buttons */}
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
+        <div className="app-header-main max-w-6xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
           {/* Logo & ConeCtaHarley Title */}
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-orange-600 to-amber-600 p-0.5 shadow-lg shadow-orange-600/30 flex items-center justify-center font-black text-white text-sm sm:text-base shrink-0">
-              CH
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <h1 className="font-extrabold tracking-tight text-lg sm:text-xl text-[#ff6600] truncate">
-                  ConeCtaHarley
-                </h1>
-                <span className="text-[9px] sm:text-[10px] font-mono text-orange-400 bg-orange-950/60 border border-orange-900/60 px-1 sm:px-1.5 py-0.5 rounded shrink-0">
-                  J1850
-                </span>
-              </div>
-              <p className="text-[10px] sm:text-[11px] text-neutral-400 truncate hidden xs:block">
-                Scanner & Painel Harley-Davidson
-              </p>
-            </div>
+          <div className="app-brand flex items-center gap-2.5 sm:gap-3 min-w-0">
+            {uiSkin === 'original' ? (
+              <>
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-orange-600 to-amber-600 p-0.5 shadow-lg shadow-orange-600/30 flex items-center justify-center font-black text-white text-sm sm:text-base shrink-0">CH</div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <h1 className="font-extrabold tracking-tight text-lg sm:text-xl text-[#ff6600] truncate">ConeCtaHarley</h1>
+                    <span className="text-[9px] sm:text-[10px] font-mono text-orange-400 bg-orange-950/60 border border-orange-900/60 px-1 sm:px-1.5 py-0.5 rounded shrink-0">EFI</span>
+                  </div>
+                  <p className="text-[10px] sm:text-[11px] text-neutral-400 truncate hidden xs:block">Scanner & Painel Harley-Davidson</p>
+                </div>
+              </>
+            ) : uiSkin === 'orange' ? (
+              <>
+                <div className="skin-logo skin-logo-engine text-[#ff6600]"><EngineMark /></div>
+                <div className="skin-wordmark normal-case"><span className="text-white">ConeCta</span><span className="text-[#ff6600]">Harley</span></div>
+              </>
+            ) : (
+              <>
+                <div className="skin-logo skin-logo-bike text-[#ef1b24]"><MotorcycleMark /></div>
+                <div className="skin-wordmark uppercase italic"><span className="text-white">CONECTA</span><span className="text-[#ef1b24]">HARLEY</span></div>
+              </>
+            )}
           </div>
 
           {/* Right Action Icons & Connect Button */}
@@ -296,9 +332,17 @@ export default function App() {
           </div>
         </div>
 
+        {uiSkin !== 'original' && (
+          <div className="skin-switcher" aria-label="Tema da interface">
+            <button onClick={() => setUiSkin('orange')} className={uiSkin === 'orange' ? 'active' : ''}>Orange</button>
+            <button onClick={() => setUiSkin('dark')} className={uiSkin === 'dark' ? 'active' : ''}>Dark</button>
+            <button onClick={() => setUiSkin('original')}>Original</button>
+          </div>
+        )}
+
         {/* Row 2: Horizontally Scrollable Navigation Strip (Stories / Tabs style) */}
-        <div className="max-w-6xl mx-auto mt-2 pt-2 border-t border-neutral-900/90 w-full overflow-hidden">
-          <nav className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth touch-pan-x py-0.5">
+        <div className="app-nav-wrap max-w-6xl mx-auto mt-2 pt-2 border-t border-neutral-900/90 w-full overflow-hidden">
+          <nav className="app-nav flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth touch-pan-x py-0.5">
             <button
               onClick={() => {
                 setActiveTab('dashboard');
@@ -382,7 +426,7 @@ export default function App() {
         </div>
 
         {/* Row 3: Global Connection Status Banner */}
-        <div className="max-w-6xl mx-auto mt-2 pt-2 border-t border-neutral-900 flex items-center justify-between text-xs font-mono">
+        <div className="app-status max-w-6xl mx-auto mt-2 pt-2 border-t border-neutral-900 flex items-center justify-between text-xs font-mono">
           <div className="flex items-center gap-2">
             <span
               className={`w-2.5 h-2.5 rounded-full ${
@@ -413,13 +457,13 @@ export default function App() {
                 Modo Demonstração / Simulador
               </span>
             )}
-            <span className="hidden sm:inline">Protocolo: J1850 VPW (10.4 kbps)</span>
+            <span className="hidden sm:inline">Protocolo: VPW Harley (10.4 kbps)</span>
           </div>
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
+      <main className="app-main flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
         {/* Disconnected Quick Welcome Banner */}
         {!isConnected && (
           <div className="bg-gradient-to-r from-neutral-900/90 to-neutral-900/50 border border-neutral-800 rounded-2xl p-5 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -429,7 +473,7 @@ export default function App() {
                 Pronto para monitorar sua Harley-Davidson!
               </h2>
               <p className="text-xs text-neutral-400 max-w-2xl leading-relaxed">
-                Conecte seu scanner ELM327 Bluetooth/USB na tomada de diagnóstico da moto (Deutsch 4 pinos ou OBD2), ou teste imediatamente com o <strong>Simulador Harley J1850</strong> sem precisar de moto ou hardware agora.
+                Conecte seu scanner ELM327 Bluetooth/USB na tomada de diagnóstico da moto (Deutsch 4 pinos ou OBD2), ou teste imediatamente com o <strong>Simulador Harley</strong> sem precisar de moto ou hardware agora.
               </p>
             </div>
             <div className="flex items-center gap-2.5 shrink-0">
@@ -494,7 +538,7 @@ export default function App() {
               turnLeft={telemetry.turnLeft}
               turnRight={telemetry.turnRight}
               neutral={telemetry.neutral}
-              batteryWarning={telemetry.batteryVoltage < 12.2 && telemetry.batteryVoltage > 0}
+              batteryWarning={(telemetry.elmSupplyVoltage ?? 0) < 12.2 && (telemetry.elmSupplyVoltage ?? 0) > 0}
               oilWarning={telemetry.oilWarning}
               checkEngine={telemetry.checkEngine}
               highBeam={telemetry.highBeam}
@@ -539,6 +583,7 @@ export default function App() {
               engineTempC={telemetry.engineTempC}
               engineTempF={telemetry.engineTempF}
               batteryVoltage={telemetry.batteryVoltage}
+              elmSupplyVoltage={telemetry.elmSupplyVoltage}
               gear={telemetry.gear}
               tempUnit={config.tempUnit}
               onToggleTempUnit={() =>
@@ -622,7 +667,7 @@ export default function App() {
           <DataloggerPanel telemetry={telemetry} />
         )}
 
-        {/* Tab 6: Terminal & J1850 Sniffer Full View */}
+        {/* Tab 6: Terminal & Sniffer Full View */}
         {activeTab === 'terminal' && (
           <div className="space-y-4">
             <TerminalConsole
@@ -632,11 +677,11 @@ export default function App() {
               isConnected={isConnected}
             />
 
-            {/* J1850 Frame Architecture Explanation */}
+            {/* Frame Architecture Explanation */}
             <div className="w-full max-w-4xl mx-auto bg-[#14151b] border border-neutral-800 rounded-2xl p-5 shadow-xl text-xs space-y-3">
               <h3 className="text-sm font-bold text-neutral-200 uppercase tracking-wider flex items-center gap-2">
                 <Info className="w-4 h-4 text-orange-500" />
-                Engenharia Reversa dos Pacotes J1850 Harley-Davidson
+                Engenharia Reversa dos Pacotes Harley-Davidson
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-black/50 p-3 rounded-xl border border-neutral-800">
@@ -687,12 +732,14 @@ export default function App() {
         config={config}
         onChangeConfig={setConfig}
         currentType={connectionType}
+        uiSkin={uiSkin}
+        onChangeUiSkin={setUiSkin}
       />
 
       {/* Footer */}
-      <footer className="border-t border-neutral-900 bg-[#0d0e12] py-4 px-4 text-center text-xs text-neutral-500">
+      <footer className="app-footer border-t border-neutral-900 bg-[#0d0e12] py-4 px-4 text-center text-xs text-neutral-500">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>ConeCtaHarley · Monitor J1850 VPW para PC, Mac, Linux, Android e iPhone</span>
+          <span>ConeCtaHarley · Monitor VPW Harley para PC, Mac, Linux, Android e iPhone</span>
           <span className="font-mono text-[11px] text-neutral-600">
             Compatível com adaptadores ELM327 Bluetooth / USB & Harley-Davidson EFI
           </span>

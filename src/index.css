@@ -9,3 +9,102 @@
     scrollbar-width: none;
   }
 }
+
+/* ==========================================================
+   ConeCtaHarley MultiSkin
+   Original: intentionally untouched. Orange/Dark: visual only.
+   ========================================================== */
+.skin-orange { --skin-accent:#ff6600; --skin-accent-rgb:255,102,0; --skin-panel:#101215; --skin-panel-2:#15181c; }
+.skin-dark { --skin-accent:#ef1b24; --skin-accent-rgb:239,27,36; --skin-panel:#090a0c; --skin-panel-2:#111216; }
+
+.skin-orange,
+.skin-dark {
+  background:
+    radial-gradient(circle at 82% 0%, rgba(var(--skin-accent-rgb),.10), transparent 28rem),
+    linear-gradient(180deg,#090a0c 0%,#0c0e10 100%);
+}
+
+/* Fixed left navigation only on the new skins. */
+@media (min-width: 900px) {
+  .skin-orange .app-header,
+  .skin-dark .app-header {
+    position: fixed !important;
+    inset: 0 auto 0 0;
+    width: 232px;
+    height: 100vh;
+    padding: 18px 14px;
+    border-right: 1px solid rgba(var(--skin-accent-rgb),.22);
+    border-bottom: 0;
+    background: linear-gradient(180deg,rgba(15,17,20,.99),rgba(6,7,9,.99));
+    box-shadow: 12px 0 35px rgba(0,0,0,.38);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .skin-orange .app-header-main,
+  .skin-dark .app-header-main {
+    width: 100%; margin: 0; display: flex; flex-direction: column; align-items: stretch; gap: 16px;
+  }
+  .skin-orange .app-header-main > div:last-child,
+  .skin-dark .app-header-main > div:last-child { justify-content: center; flex-wrap: wrap; }
+  .skin-orange .app-brand,
+  .skin-dark .app-brand { justify-content: center; flex-direction: column; text-align:center; gap:7px; }
+  .skin-orange .app-nav-wrap,
+  .skin-dark .app-nav-wrap { width:100%; margin:18px 0 0; padding-top:14px; overflow:visible; }
+  .skin-orange .app-nav,
+  .skin-dark .app-nav { flex-direction:column; align-items:stretch; overflow:visible; gap:7px; }
+  .skin-orange .app-nav button,
+  .skin-dark .app-nav button { width:100%; justify-content:flex-start; padding:10px 12px; border-radius:10px; }
+  .skin-orange .app-status,
+  .skin-dark .app-status { width:100%; margin:auto 0 0; padding-top:14px; flex-direction:column; align-items:flex-start; gap:8px; }
+  .skin-orange .app-status > div:last-child,
+  .skin-dark .app-status > div:last-child { flex-direction:column; align-items:flex-start; gap:6px; }
+  .skin-orange .app-main,
+  .skin-dark .app-main { margin-left:232px; max-width:none; width:calc(100% - 232px); padding:26px 30px; }
+  .skin-orange .app-footer,
+  .skin-dark .app-footer { margin-left:232px; width:calc(100% - 232px); }
+}
+
+.skin-logo { display:flex; align-items:center; justify-content:center; filter:drop-shadow(0 0 10px rgba(var(--skin-accent-rgb),.28)); }
+.skin-wordmark { font-weight:900; letter-spacing:-.035em; font-size:1.15rem; line-height:1; white-space:nowrap; }
+.skin-dark .skin-wordmark { font-size:1rem; letter-spacing:-.025em; }
+
+.skin-switcher { display:flex; gap:5px; justify-content:center; margin:12px auto 0; width:100%; }
+.skin-switcher button { border:1px solid #2c3037; background:#111318; color:#8e949d; border-radius:8px; padding:5px 8px; font-size:10px; font-weight:800; cursor:pointer; }
+.skin-switcher button.active { border-color:var(--skin-accent); color:#fff; background:rgba(var(--skin-accent-rgb),.20); box-shadow:0 0 16px rgba(var(--skin-accent-rgb),.12); }
+
+/* New skin surface treatment. No layout/logic changes inside feature components. */
+.skin-orange .app-main > div,
+.skin-dark .app-main > div { position:relative; }
+.skin-orange .app-main .bg-\[\#14151b\], .skin-orange .app-main .bg-\[\#161616\],
+.skin-dark .app-main .bg-\[\#14151b\], .skin-dark .app-main .bg-\[\#161616\] {
+  background:linear-gradient(145deg,var(--skin-panel-2),var(--skin-panel)) !important;
+}
+.skin-orange .app-main .border-neutral-800,
+.skin-dark .app-main .border-neutral-800 { border-color:rgba(120,128,138,.24) !important; }
+
+/* Dark uses red identity instead of orange; Orange keeps ConeCtaHarley orange. */
+.skin-dark .bg-\[\#ff6600\], .skin-dark .bg-orange-600, .skin-dark .bg-orange-500 { background-color:#ef1b24 !important; }
+.skin-dark .text-\[\#ff6600\], .skin-dark .text-orange-500, .skin-dark .text-orange-400 { color:#ef1b24 !important; }
+.skin-dark .border-orange-500, .skin-dark .border-orange-800 { border-color:rgba(239,27,36,.65) !important; }
+.skin-dark .border-t-orange-500 { border-top-color:#ef1b24 !important; }
+.skin-dark .bg-orange-950\/60, .skin-dark .bg-orange-950\/80, .skin-dark .bg-orange-950\/20, .skin-dark .bg-orange-950\/40 { background-color:rgba(70,6,10,.62) !important; }
+
+/* Carbon-like depth used by the new identities, deliberately absent from Original. */
+.skin-orange .app-main,
+.skin-dark .app-main {
+  background-image:
+    linear-gradient(135deg,rgba(255,255,255,.012) 25%,transparent 25%),
+    linear-gradient(225deg,rgba(255,255,255,.012) 25%,transparent 25%),
+    linear-gradient(315deg,rgba(255,255,255,.012) 25%,transparent 25%),
+    linear-gradient(45deg,rgba(255,255,255,.012) 25%,transparent 25%);
+  background-size:18px 18px;
+  background-position:0 0,9px 0,9px -9px,0 9px;
+}
+
+@media (max-width:899px) {
+  .skin-orange .app-header,
+  .skin-dark .app-header { background:rgba(10,11,13,.98); border-bottom-color:rgba(var(--skin-accent-rgb),.25); }
+  .skin-orange .skin-switcher,
+  .skin-dark .skin-switcher { margin-top:8px; }
+}
