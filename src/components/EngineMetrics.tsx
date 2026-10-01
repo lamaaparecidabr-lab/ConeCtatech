@@ -29,8 +29,9 @@ export const EngineMetrics: React.FC<EngineMetricsProps> = ({
   const displayTemp = tempUnit === 'celsius' ? `${engineTempC}°C` : `${engineTempF}°F`;
   const subTemp = tempUnit === 'celsius' ? `${engineTempF}°F` : `${engineTempC}°C`;
 
-  // ATRV é a alimentação medida pelo ELM327. batteryVoltage fica reservado à futura leitura ECM/J1850.
-  const displayedSupplyVoltage = elmSupplyVoltage ?? 0;
+  // Rev10: prioriza a tensão real da ECM (DPID 0x11) quando disponível.
+  // Antes da primeira leitura ECM válida, ATRV permanece apenas como indicação inicial.
+  const displayedSupplyVoltage = batteryVoltage > 0 ? batteryVoltage : (elmSupplyVoltage ?? 0);
   const isCharging = displayedSupplyVoltage >= 13.4;
   const isLowBattery = displayedSupplyVoltage < 12.2 && displayedSupplyVoltage > 0;
 
