@@ -37,28 +37,38 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 type UiSkin = 'original' | 'orange' | 'dark';
 
 const EngineMark = () => (
-  <svg viewBox="0 0 86 64" className="w-14 h-11" aria-hidden="true">
-    {/* V-Twin frontal simplificado, inspirado apenas na silhueta enviada pelo usuário. */}
-    <g fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10 12h22l8 9-10 10-18-7zM76 12H54l-8 9 10 10 18-7z" />
-      <path d="M17 18l17 19M69 18L52 37M22 22l15 17M64 22L49 39" />
-      <circle cx="43" cy="30" r="13" />
-      <path d="M35 41l-7 15h30l-7-15M43 43v13M36 50h14" />
-      <path d="M30 57h26" />
+  <svg viewBox="0 0 96 72" className="w-14 h-11" aria-hidden="true">
+    {/* V-Twin frontal: símbolo gráfico da skin Orange. */}
+    <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 9h25l9 8-8 11-23-8zM88 9H63l-9 8 8 11 23-8z" />
+      <path d="M13 14h18M11 19h20M83 14H65M85 19H65" />
+      <path d="M18 23l17 20M78 23L61 43M24 25l15 17M72 25L57 42" />
+      <path d="M39 17h18l7 10-5 18-11 9-11-9-5-18z" />
+      <circle cx="48" cy="32" r="10" />
+      <circle cx="48" cy="32" r="4" />
+      <path d="M38 45l-8 16h36l-8-16M48 43v18M39 52h18M35 61h26" />
+      <path d="M28 42l-7 11M68 42l7 11M20 54h13M63 54h13" />
+      <path d="M32 12l6 7M64 12l-6 7" />
     </g>
   </svg>
 );
 
 const MotorcycleMark = () => (
-  <svg viewBox="0 0 104 58" className="w-16 h-10" aria-hidden="true">
-    {/* Touring/bagger simplificada voltada para a direita, inspirada na referência enviada pelo usuário. */}
+  <svg viewBox="0 0 122 66" className="w-16 h-10" aria-hidden="true">
+    {/* Touring/Bagger lateral voltada para a direita: símbolo gráfico da skin Dark. */}
     <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="23" cy="43" r="11" /><circle cx="82" cy="43" r="11" />
-      <path d="M23 43l18-18h18l13 18M41 25l8 18H23M49 43h23" />
-      <path d="M50 24c6-12 18-15 28-8l5 8-10 4H55zM76 17l9-7 8 1" />
-      <path d="M83 24l-1 19M87 20l8 23M57 26l7-9" />
-      <path d="M31 22h14l-5-7H29zM19 29h13" />
-      <path d="M13 31h14M11 35h11" />
+      <circle cx="27" cy="49" r="12" />
+      <circle cx="94" cy="49" r="12" />
+      <circle cx="27" cy="49" r="5" />
+      <circle cx="94" cy="49" r="5" />
+      <path d="M27 49l18-20h24l15 20M45 29l9 20H27M54 49h40" />
+      <path d="M53 28c8-13 23-18 38-13l10 7-4 11-18 3-15-4z" />
+      <path d="M79 15l7-9 15 1M99 8l8 5M96 22l-2 27M101 25l7 24" />
+      <path d="M40 25h18l-6-9H36zM33 31H18l-7 8h18" />
+      <path d="M14 38H7M12 42H5" />
+      <path d="M58 32l8 9 10-2-5-8zM48 34l-6 10M72 37l8 10" />
+      <path d="M104 34h10l3 10h-11M104 39h11" />
+      <path d="M18 49h-8M106 49h11" />
     </g>
   </svg>
 );
