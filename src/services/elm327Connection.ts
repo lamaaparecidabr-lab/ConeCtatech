@@ -84,6 +84,10 @@ export class ELM327Connection {
   // Active polling timer for real hardware fallback
   private pollTimer: any = null;
 
+  // Rev10: periodic ECM DPID 0x11 battery sampler.
+  private batteryDpidTimer: any = null;
+  private isBatteryDpidBusy: boolean = false;
+
   // Incoming data listeners for request/expect flow (HarleyDroid chat mechanism)
   private responseListeners: Array<(line: string) => void> = [];
   private isDiagnosticBusy: boolean = false;
@@ -791,6 +795,26 @@ export class ELM327Connection {
     });
   }
 
+  /** Aguarda o prompt final do ELM sem transmitir um novo break. */
+  private async waitForPrompt(timeoutMs: number = 900): Promise<boolean> {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (ok: boolean) => {
+        if (done) return;
+        done = true;
+        const idx = this.responseListeners.indexOf(listener);
+        if (idx !== -1) this.responseListeners.splice(idx, 1);
+        clearTimeout(timer);
+        resolve(ok);
+      };
+      const listener = (line: string) => {
+        if (line.trim() === '>') finish(true);
+      };
+      this.responseListeners.push(listener);
+      const timer = setTimeout(() => finish(false), timeoutMs);
+    });
+  }
+
   /**
    * Mecanismo chat(send, expect, timeout) equivalente ao HarleyDroid
    * Transmite comando e aguarda resposta esperada antes de prosseguir
@@ -1139,7 +1163,20 @@ export class ELM327Connection {
           });
         }
 
-        const normalLength = await this.chat('ATNL', 'OK', 500);
+        // Evita enviar ATNL antes de o ELM concluir a resposta 6A11.
+        const dpidPromptReady = await this.waitForPrompt(1000);
+        if (!dpidPromptReady) {
+          this.onPacketLog({
+            id: Math.random().toString(36).substring(2, 9),
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'info',
+            raw: 'DPID11_PROMPT_TIMEOUT',
+            decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11] Prompt final do ELM não observado antes da restauração.',
+            tag: 'AT',
+          });
+        }
+
+        const normalLength = await this.chat('ATNL', 'OK', 700);
         this.onPacketLog({
           id: Math.random().toString(36).substring(2, 9),
           timestamp: new Date().toLocaleTimeString(),
@@ -1193,6 +1230,9 @@ export class ELM327Connection {
 
       // Restaura monitoramento de painel em tempo real
       await this.resumeLiveDashboard();
+      if (activeDpid11Success) {
+        this.startBatteryDpidSampling();
+      }
     } finally {
       this.isDiagnosticBusy = false;
     }
@@ -1206,6 +1246,7 @@ export class ELM327Connection {
     const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
     this.onStatusChange('Interrompendo monitoramento para limpeza de DTCs...');
+    this.stopBatteryDpidSampling();
     this.stopActivePolling();
     await this.sendBreak();
     await sleep(300);
@@ -1256,6 +1297,65 @@ export class ELM327Connection {
     // Restaura monitoramento
     await this.resumeLiveDashboard();
     return confirmedCount > 0;
+  }
+
+  /** Rev10: inicia leitura periódica do DPID 0x11 somente após validação positiva no Scanner. */
+  private startBatteryDpidSampling(): void {
+    this.stopBatteryDpidSampling();
+    if (this.connectionType === 'disconnected' || this.connectionType === 'simulator') return;
+    if (this.activeConfig?.monitorMode === false) return;
+    this.batteryDpidTimer = setInterval(() => { void this.sampleBatteryDpid11(); }, 5000);
+  }
+
+  private stopBatteryDpidSampling(): void {
+    if (this.batteryDpidTimer) {
+      clearInterval(this.batteryDpidTimer);
+      this.batteryDpidTimer = null;
+    }
+  }
+
+  /** Uma amostra ECM real, intercalada de forma serializada com o ATMA. */
+  private async sampleBatteryDpid11(): Promise<void> {
+    if (this.isBatteryDpidBusy || this.isDiagnosticBusy) return;
+    if (this.connectionType === 'disconnected' || this.connectionType === 'simulator') return;
+    if (this.activeConfig?.monitorMode === false) return;
+
+    this.isBatteryDpidBusy = true;
+    try {
+      const stopped = await this.stopMonitorAndWaitForPrompt(1600);
+      if (!stopped) return;
+
+      const header = await this.chat('ATSH 6C 10 F1', 'OK', 700);
+      if (!header.success) return;
+
+      const longMode = await this.chat('ATAL', 'OK', 700);
+      if (!longMode.success) return;
+
+      const dpid = await this.chat('2A 01 11 FF FF FF FF FF', '6CF1106A11', 1600);
+      if (dpid.success) {
+        this.onPacketLog({
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'rx',
+          raw: dpid.reply.trim() || 'DPID 0x11',
+          decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11][LIVE] Amostra periódica recebida.',
+          tag: 'STATUS',
+        });
+      }
+
+      await this.waitForPrompt(1000);
+      await this.chat('ATNL', 'OK', 700);
+    } catch (e) {
+      console.warn('DPID 0x11 live sample warning:', e);
+    } finally {
+      try {
+        await this.chat('ATSH 68 6A F1', 'OK', 700);
+        await this.sendCommand('ATMA');
+      } catch (e) {
+        console.warn('DPID 0x11 live restore warning:', e);
+      }
+      this.isBatteryDpidBusy = false;
+    }
   }
 
   /**
@@ -1847,6 +1947,7 @@ export class ELM327Connection {
    * Clean disconnect
    */
   public disconnect() {
+    this.stopBatteryDpidSampling();
     this.stopActivePolling();
 
     if (this.simTimer) {
