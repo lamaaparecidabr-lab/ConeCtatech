@@ -117,16 +117,17 @@ export class J1850Decoder {
       const line = rawLine.trim();
       if (!line) continue;
 
-      // Leitura de tensão da bateria via ATRV
+      // ATRV mede a tensão de alimentação vista pelo ELM327 (pino 16 OBD).
+      // Não é um PID de tensão da ECM e, portanto, não deve alimentar batteryVoltage.
       if (line.endsWith('V') && !isNaN(parseFloat(line))) {
         const voltage = parseFloat(line);
-        updatedTelemetry.batteryVoltage = voltage;
+        updatedTelemetry.elmSupplyVoltage = voltage;
         onPacket({
           id: Math.random().toString(36).substring(2, 9),
           timestamp: new Date().toLocaleTimeString(),
           type: 'rx',
           raw: line,
-          decoded: `Tensão da Bateria: ${voltage.toFixed(1)}V`,
+          decoded: `[SOURCE:ELM-ATRV] Alimentação ELM327: ${voltage.toFixed(1)}V`,
           tag: 'STATUS',
         });
         continue;
@@ -182,8 +183,8 @@ export class J1850Decoder {
     // =========================================================================
     // 1. HARLEY RPM (Frame 28 1B 10 02 XX XX -> RPM = valor / 4)
     // =========================================================================
-    if (cleanHex.includes('281b1002')) {
-      const idx = cleanHex.indexOf('281b1002');
+    if (cleanHex.startsWith('281b1002')) {
+      const idx = 0;
       if (cleanHex.length >= idx + 12) {
         const hexBytes = cleanHex.substr(idx + 8, 4);
         const valorDecimal = parseInt(hexBytes, 16);
@@ -199,7 +200,7 @@ export class J1850Decoder {
             timestamp: new Date().toLocaleTimeString(),
             type: 'rx',
             raw: originalLine,
-            decoded: `Harley J1850 RPM: ${telemetry.rpm} RPM [hex:${hexBytes}]`,
+            decoded: `[SOURCE:J1850-BROADCAST] Harley J1850 RPM: ${telemetry.rpm} RPM [hex:${hexBytes}]`,
             tag: 'RPM',
           };
         }
@@ -209,8 +210,8 @@ export class J1850Decoder {
     // =========================================================================
     // 2. HARLEY VELOCIDADE (Frame 48 29 10 02 XX XX -> km/h = valor / 128)
     // =========================================================================
-    else if (cleanHex.includes('48291002')) {
-      const idx = cleanHex.indexOf('48291002');
+    else if (cleanHex.startsWith('48291002')) {
+      const idx = 0;
       if (cleanHex.length >= idx + 12) {
         const hexBytes = cleanHex.substr(idx + 8, 4);
         const valorDecimal = parseInt(hexBytes, 16);
@@ -218,16 +219,14 @@ export class J1850Decoder {
           const speedFinal = Math.round(valorDecimal / 128);
           telemetry.speedKmH = Math.min(260, Math.max(0, speedFinal));
           telemetry.speedMph = Math.round(telemetry.speedKmH * 0.621371);
-          // Usa estimativa de marcha como fallback APENAS se a marcha real não foi recebida nos últimos 3 segundos
-          if (Date.now() - this.lastRealGearTimestamp > 3000) {
-            telemetry.gear = this.calculateGear(telemetry.rpm, telemetry.speedKmH, telemetry.neutral);
-          }
+          // Em conexão real, a marcha vem do broadcast Harley A8 3B 10 03 XX.
+          // Não inferir marcha por RPM/velocidade: a heurística pode sobrescrever um dado real ou inventar uma marcha.
           packetLog = {
             id: Math.random().toString(36).substring(2, 9),
             timestamp: new Date().toLocaleTimeString(),
             type: 'rx',
             raw: originalLine,
-            decoded: `Harley J1850 Velocidade: ${telemetry.speedKmH} km/h (${telemetry.speedMph} mph) [hex:${hexBytes}]`,
+            decoded: `[SOURCE:J1850-BROADCAST] Harley J1850 Velocidade: ${telemetry.speedKmH} km/h (${telemetry.speedMph} mph) [hex:${hexBytes}]`,
             tag: 'SPEED',
           };
         }
@@ -237,8 +236,8 @@ export class J1850Decoder {
     // =========================================================================
     // 3. HARLEY TEMPERATURA MOTOR (Frame A8 49 10 10 XX -> XX = graus Fahrenheit)
     // =========================================================================
-    else if (cleanHex.includes('a8491010')) {
-      const idx = cleanHex.indexOf('a8491010');
+    else if (cleanHex.startsWith('a8491010')) {
+      const idx = 0;
       if (cleanHex.length >= idx + 10) {
         const hexByte = cleanHex.substr(idx + 8, 2);
         const tempFahrenheit = parseInt(hexByte, 16);
@@ -250,7 +249,7 @@ export class J1850Decoder {
             timestamp: new Date().toLocaleTimeString(),
             type: 'rx',
             raw: originalLine,
-            decoded: `Harley J1850 Temp Motor: ${telemetry.engineTempC}°C / ${telemetry.engineTempF}°F [hex:${hexByte}]`,
+            decoded: `[SOURCE:J1850-BROADCAST] Harley J1850 Temp Motor: ${telemetry.engineTempC}°C / ${telemetry.engineTempF}°F [hex:${hexByte}]`,
             tag: 'TEMP',
           };
         }
@@ -261,8 +260,8 @@ export class J1850Decoder {
     // 4. HARLEY MARCHA REAL (Frame A8 3B 10 03 XX)
     // 01 = 1ª, 03 = 2ª, 07 = 3ª, 0F = 4ª, 1F = 5ª, 3F = 6ª
     // =========================================================================
-    else if (cleanHex.includes('a83b1003')) {
-      const idx = cleanHex.indexOf('a83b1003');
+    else if (cleanHex.startsWith('a83b1003')) {
+      const idx = 0;
       if (cleanHex.length >= idx + 10) {
         const hexVal = parseInt(cleanHex.substr(idx + 8, 2), 16);
         if (!isNaN(hexVal)) {
@@ -274,25 +273,33 @@ export class J1850Decoder {
           else if (hexVal === 0x1f) gear = 5;
           else if (hexVal === 0x3f) gear = 6;
           else if (hexVal !== 0) {
-            // Decodificação genérica por deslocamento de bits (HarleyDroid)
-            let g = 0;
-            let temp = hexVal;
-            while ((temp >>= 1) !== 0) g++;
-            gear = (g >= 1 && g <= 6) ? g : 'N';
+            // Fora dos valores observados/documentados para 1ª–6ª: não fabricar marcha.
+            // O byte bruto continua registrado para investigação em moto real.
+            packetLog = {
+              id: Math.random().toString(36).substring(2, 9),
+              timestamp: new Date().toLocaleTimeString(),
+              type: 'rx',
+              raw: originalLine,
+              decoded: `[SOURCE:J1850-BROADCAST] Marcha: byte não reconhecido 0x${hexVal.toString(16).padStart(2, '0').toUpperCase()} — estado anterior preservado`,
+              tag: 'STATUS',
+            };
+            return { telemetry, packetLog };
           }
 
-          telemetry.gear = gear;
-          if (gear !== 'N') {
+          // 0x00 significa ausência de marcha no frame; o neutro é confirmado pelo frame 48 3B 40 XX.
+          // Não força N aqui para evitar conflito entre fontes.
+          if (hexVal !== 0) {
+            telemetry.gear = gear;
             telemetry.neutral = false;
+            this.lastRealGearTimestamp = Date.now();
           }
-          this.lastRealGearTimestamp = Date.now();
 
           packetLog = {
             id: Math.random().toString(36).substring(2, 9),
             timestamp: new Date().toLocaleTimeString(),
             type: 'rx',
             raw: originalLine,
-            decoded: `Harley J1850 Marcha Real: ${gear === 'N' ? 'Neutro (N)' : `${gear}ª Marcha`} [hex:0x${hexVal.toString(16)}]`,
+            decoded: `[SOURCE:J1850-BROADCAST] Harley J1850 Marcha: ${hexVal === 0 ? 'SEM MARCHA (aguardando estado de neutro)' : `${gear}ª Marcha`} [hex:0x${hexVal.toString(16).padStart(2, '0')}]`,
             tag: 'STATUS',
           };
         }
@@ -301,28 +308,34 @@ export class J1850Decoder {
 
     // =========================================================================
     // 5. HARLEY NEUTRO E EMBREAGEM (Frame 48 3B 40 XX)
-    // bit 0x20 = neutro | bit 0x80 = embreagem acionada
+    // Semântica do parser original HarleyDroid:
+    //   XX = 0x20 -> fora do neutro
+    //   XX = 0xA0 -> neutro
+    //   bit 0x80  -> embreagem acionada
+    // Não reduzir a regra de neutro a (XX & 0x20) != 0: isso inverteria 0x20.
     // =========================================================================
-    else if (cleanHex.includes('483b40')) {
-      const idx = cleanHex.indexOf('483b40');
+    else if (cleanHex.startsWith('483b40')) {
+      const idx = 0;
       if (cleanHex.length >= idx + 8) {
         const xx = parseInt(cleanHex.substr(idx + 6, 2), 16);
         if (!isNaN(xx)) {
-          const isNeutral = (xx & 0x20) !== 0;
-          const isClutch = (xx & 0x80) !== 0;
+          let neutralState: boolean | undefined;
+          if (xx === 0x20) neutralState = false;
+          else if (xx === 0xa0) neutralState = true;
 
-          telemetry.neutral = isNeutral;
-          telemetry.clutchEngaged = isClutch;
-          if (isNeutral) {
-            telemetry.gear = 'N';
+          const isClutch = (xx & 0x80) !== 0;
+          if (neutralState !== undefined) {
+            telemetry.neutral = neutralState;
+            if (neutralState) telemetry.gear = 'N';
           }
+          telemetry.clutchEngaged = isClutch;
 
           packetLog = {
             id: Math.random().toString(36).substring(2, 9),
             timestamp: new Date().toLocaleTimeString(),
             type: 'rx',
             raw: originalLine,
-            decoded: `Harley J1850: Neutro=${isNeutral ? 'SIM' : 'NÃO'} | Embreagem=${isClutch ? 'ACIONADA' : 'LIVRE'} [hex:0x${xx.toString(16)}]`,
+            decoded: `[SOURCE:J1850-BROADCAST] Harley J1850: Neutro=${neutralState === undefined ? 'SEM ALTERAÇÃO' : neutralState ? 'SIM' : 'NÃO'} | Embreagem=${isClutch ? 'ACIONADA' : 'LIVRE'} [hex:0x${xx.toString(16).padStart(2, '0')}]`,
             tag: 'STATUS',
           };
         }
@@ -612,7 +625,42 @@ export class J1850Decoder {
     }
 
     // =========================================================================
-    // 10. HARLEY DTCs (Respostas 6C F1 10 59, 6C F1 40 59, 6C F1 60 59)
+    // 10. HARLEY ACTIVE DATA - TTS/HDC2 DPID 0x11
+    // Request: 6C 10 F1 2A 01 11
+    // Response: 6C F1 10 6A 11 [RPM_H] [RPM_L] [DesiredIdle] [Battery] [MAP] [TPS] [CRC]
+    // TTS HD-DatastreamConfig: DPID 0x11 -> $2001,$2002,$2003,$2004,$2005.
+    // =========================================================================
+    else if (cleanHex.startsWith('6cf1106a11')) {
+      const frameBytes = bytes;
+      // Header(3) + service(1) + DPID(1) + 6 data bytes = 11 bytes,
+      // with an optional/visible CRC as the 12th byte depending on the ELM path.
+      if (frameBytes.length >= 11) {
+        const rpmRaw = (frameBytes[5] << 8) | frameBytes[6];
+        const desiredIdleRaw = frameBytes[7];
+        const batteryRaw = frameBytes[8];
+        const mapRaw = frameBytes[9];
+        const tpsRaw = frameBytes[10];
+
+        // Do not replace the proven passive RPM broadcast yet; log the TTS RPM as a cross-check.
+        const ttsRpm = rpmRaw;
+        const desiredIdleRpm = desiredIdleRaw * 8;
+        telemetry.batteryVoltage = Math.round((batteryRaw * 0.1) * 10) / 10;
+        telemetry.manifoldPressureKpa = Math.round((mapRaw * 0.368999988 + 10.35400009) * 10) / 10;
+        telemetry.throttlePosition = Math.round((tpsRaw * 0.45449999) * 10) / 10;
+
+        packetLog = {
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'rx',
+          raw: originalLine,
+          decoded: `[SOURCE:J1850-ACTIVE][DPID:0x11] Battery=${telemetry.batteryVoltage.toFixed(1)}V | MAP=${telemetry.manifoldPressureKpa.toFixed(1)}kPa | TPS=${telemetry.throttlePosition.toFixed(1)}% | TTS-RPM=${ttsRpm} | DesiredIdle=${desiredIdleRpm} RPM`,
+          tag: 'STATUS',
+        };
+      }
+    }
+
+    // =========================================================================
+    // 11. HARLEY DTCs (Respostas 6C F1 10 59, 6C F1 40 59, 6C F1 60 59)
     // in[2] == 0x10 -> histórico | in[2] == 0x40 -> atual
     // =========================================================================
     else if (
@@ -825,7 +873,6 @@ export class J1850Decoder {
         if (!isNaN(trimByte) && trimByte !== 0xff) {
           telemetry.frontShortTermFuelTrim = Number((((trimByte - 128) * 100) / 128).toFixed(1));
         }
-        telemetry.frontAFR = Number((14.7 - (telemetry.frontO2Voltage - 0.45) * 3).toFixed(2));
       }
     } else if (cleanHex.startsWith('4115') && cleanHex.length >= 8) {
       const voltByte = parseInt(cleanHex.substring(4, 6), 16);
@@ -835,7 +882,6 @@ export class J1850Decoder {
         if (!isNaN(trimByte) && trimByte !== 0xff) {
           telemetry.rearShortTermFuelTrim = Number((((trimByte - 128) * 100) / 128).toFixed(1));
         }
-        telemetry.rearAFR = Number((14.7 - (telemetry.rearO2Voltage - 0.45) * 3).toFixed(2));
       }
     } else if (cleanHex.startsWith('4111') && cleanHex.length >= 6) {
       const tpsVal = parseInt(cleanHex.substring(4, 6), 16);

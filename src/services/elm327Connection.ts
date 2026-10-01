@@ -707,7 +707,7 @@ export class ELM327Connection {
       return;
     }
 
-    // Em modo Harley J1850, não concorre com 010C/010D/0105; consulta apenas tensão ATRV controlada
+    // Em modo Harley J1850, ATRV é consultado apenas como alimentação do ELM327; não é tensão ECM/J1850
     this.pollTimer = setInterval(async () => {
       if (this.connectionType === 'disconnected' || this.connectionType === 'simulator') {
         this.stopActivePolling();
@@ -1027,7 +1027,48 @@ export class ELM327Connection {
     }
     await sleep(2000);
 
-    // 3. Resumo Final da Varredura
+    // 3. LEITURA ATIVA TTS/HDC2 - DPID 0x11 (somente leitura)
+    // Evidência TTS: HDC2DataCollector monta J1850 service 0x2A com subfunção 0x01 + DPID.
+    // DPID 0x11 retorna: RPM(2), Desired Idle(1), Battery(1), MAP(1), TPS(1).
+    // Executada uma única vez durante a varredura; não altera o polling/ATMA contínuo.
+    let activeDpid11Success = 0;
+    this.onStatusChange('Lendo dados ativos ECM (TTS DPID 0x11: bateria/MAP/TPS)...');
+    const hActive11 = await this.chat('ATSH 6C 10 F1', 'OK', 500);
+    if (hActive11.success) {
+      const resActive11 = await this.chat('2A 01 11', '6CF1106A11', 1500);
+      if (resActive11.success) {
+        activeDpid11Success = 1;
+        this.onPacketLog({
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'rx',
+          raw: resActive11.reply.trim() || '2A 01 11',
+          decoded: '[SOURCE:J1850-ACTIVE][DPID:0x11] Resposta ECM recebida e encaminhada ao decoder.',
+          tag: 'STATUS',
+        });
+      } else {
+        this.onPacketLog({
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'info',
+          raw: '2A 01 11 -> SEM RESPOSTA',
+          decoded: '[SOURCE:J1850-ACTIVE][DPID:0x11] ECM não respondeu. Nenhum valor foi fabricado ou substituído.',
+          tag: 'STATUS',
+        });
+      }
+    } else {
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'error',
+        raw: 'ATSH 6C 10 F1 FAIL',
+        decoded: '[SOURCE:J1850-ACTIVE][DPID:0x11] Falha ao configurar cabeçalho; requisição ativa não enviada.',
+        tag: 'AT',
+      });
+    }
+    await sleep(500);
+
+    // 4. Resumo Final da Varredura
     const totalSuccess = idSuccessCount + dtcSuccessCount;
     const totalExpected = totalIdQueries + totalDtcQueries;
 
@@ -1039,11 +1080,11 @@ export class ELM327Connection {
         timestamp: new Date().toLocaleTimeString(),
         type: 'rx',
         raw: 'DIAG_COMPLETE',
-        decoded: `[RESUMO DIAGNÓSTICO] ${summaryMsg} (Identificação: ${idSuccessCount}/${totalIdQueries} | DTCs: ${dtcSuccessCount}/${totalDtcQueries} módulos)`,
+        decoded: `[RESUMO DIAGNÓSTICO] ${summaryMsg} (Identificação: ${idSuccessCount}/${totalIdQueries} | DTCs: ${dtcSuccessCount}/${totalDtcQueries} módulos | DPID 0x11: ${activeDpid11Success ? 'OK' : 'sem resposta'})`,
         tag: 'STATUS',
       });
     } else {
-      const summaryMsg = `Diagnóstico concluído com respostas parciais: ${totalSuccess}/${totalExpected} consultas responderam (Identificação: ${idSuccessCount}/${totalIdQueries}, DTCs: ${dtcSuccessCount}/${totalDtcQueries} módulos).`;
+      const summaryMsg = `Diagnóstico concluído com respostas parciais: ${totalSuccess}/${totalExpected} consultas responderam (Identificação: ${idSuccessCount}/${totalIdQueries}, DTCs: ${dtcSuccessCount}/${totalDtcQueries} módulos, DPID 0x11: ${activeDpid11Success ? 'OK' : 'sem resposta'}).`;
       this.onStatusChange(summaryMsg);
       this.onPacketLog({
         id: Math.random().toString(36).substring(2, 9),
@@ -1402,8 +1443,8 @@ export class ELM327Connection {
         else if (this.simGear === 6) gearByteHex = '3F';
         const gearFrame = `A8 3B 10 03 ${gearByteHex}`;
 
-        // Frame Neutro / Embreagem: 48 3B 40 XX (bit 0x20 neutro, bit 0x80 embreagem)
-        const neutralByte = (this.simGear === 'N' ? 0x20 : 0x00) | (this.simGear === 'N' ? 0x80 : 0x00);
+        // Frame Neutro / Embreagem conforme parser HarleyDroid: 0x20 = fora do neutro, 0xA0 = neutro
+        const neutralByte = this.simGear === 'N' ? 0xA0 : 0x20;
         const neutralFrame = `48 3B 40 ${neutralByte.toString(16).padStart(2, '0').toUpperCase()}`;
 
         // Frame Odômetro: A8 69 10 06 XX XX (ticks = km / 0.0004)
