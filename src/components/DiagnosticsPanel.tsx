@@ -296,7 +296,148 @@ Gerado via Harley VPW Diagnostic Tool
           </div>
         </div>
 
-        {/* 2. SEÇÃO DE AUDITORIA DE KM & HORAS (Análise Anti-Fraude) */}
+        {/* 2. SEÇÃO DE CÓDIGOS DE FALHA (DTC CONTAINER) */}
+        <div id="sec-dtc" className="scroll-mt-24 space-y-4">
+          {/* 3A. FALHAS ATUAIS (Nó 0x40 / Ativas) */}
+          <div className="bg-[#161616] border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-neutral-800 pb-3 gap-3">
+              <div className="flex items-center gap-2">
+                <div className="text-sm font-bold uppercase tracking-wider text-red-500">
+                  Falhas Atuais / Presentes (DTC Atual)
+                </div>
+                <span className="text-[10px] font-mono bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded font-bold text-neutral-300">
+                  Total: {activeFaults.length}
+                </span>
+                {checkEngine && (
+                  <span className="text-[10px] font-mono bg-red-950/80 text-red-300 border border-red-700 px-2 py-0.5 rounded-full font-bold uppercase animate-pulse">
+                    Luz de Injeção (MIL) Ativa
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {activeFaults.length === 0 ? (
+              <div className="py-6 text-center flex flex-col items-center">
+                <CheckCircle2 className="w-10 h-10 text-emerald-400 mb-2" />
+                <div className="text-emerald-400 italic text-sm font-medium">
+                  {isConnected ? 'Nenhuma falha ativa registrada no momento.' : 'Aguardando leitura do scanner.'}
+                </div>
+                <p className="text-xs text-neutral-500 mt-1">
+                  Não há falha persistente acendendo a lâmpada de injeção.
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {activeFaults.map((code) => {
+                  const errInfo = BANCO_ERROS_HARLEY[code] || {
+                    desc: 'Código registrado pela ECU Harley',
+                    category: 'Injeção / Módulo',
+                    tip: 'Consulte o manual de serviço para detalhamento do circuito.',
+                  };
+
+                  return (
+                    <li
+                      key={`active-${code}`}
+                      className="bg-[#1e1111] border-l-4 border-red-500 border-y border-r border-red-950/60 rounded-r-xl p-4 transition-all hover:bg-[#251313]"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 font-mono">
+                            <span className="text-lg font-black text-red-400 bg-red-950/80 px-2.5 py-0.5 rounded border border-red-800">
+                              {code}
+                            </span>
+                            <span className="text-sm font-bold text-neutral-100">
+                              {errInfo.desc}
+                            </span>
+                          </div>
+                          <div className="text-xs text-neutral-400 flex items-center gap-2">
+                            <span className="text-orange-400">Sistema: {errInfo.category}</span>
+                            <span className="text-neutral-600">•</span>
+                            <span className="text-red-400 font-semibold">Estado: Falha Ativa</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2.5 text-xs bg-black/40 p-2.5 rounded-lg border border-neutral-800/80 text-neutral-300">
+                        <span className="text-orange-400 font-bold">Diagnóstico mecânico: </span>
+                        {errInfo.tip}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          {/* 3B. FALHAS HISTÓRICAS (Nó 0x10 / ECM) */}
+          <div className="bg-[#161616] border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-neutral-800 pb-3 gap-3">
+              <div className="flex items-center gap-2">
+                <div className="text-sm font-bold uppercase tracking-wider text-amber-500">
+                  Falhas Históricas Gravadas na ECM (DTC Histórico)
+                </div>
+                <span className="text-[10px] font-mono bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded font-bold text-neutral-300">
+                  Total: {historicFaults.length}
+                </span>
+              </div>
+            </div>
+
+            {historicFaults.length === 0 ? (
+              <div className="py-6 text-center flex flex-col items-center">
+                <CheckCircle2 className="w-10 h-10 text-emerald-400 mb-2" />
+                <div className="text-emerald-400 italic text-sm font-medium">
+                  {isConnected ? 'Nenhuma falha histórica armazenada na memória da ECM.' : 'Aguardando leitura do scanner.'}
+                </div>
+                <p className="text-xs text-neutral-500 mt-1">
+                  A memória histórica da ECM não contém ocorrências passadas pendentes.
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {historicFaults.map((code) => {
+                  const errInfo = BANCO_ERROS_HARLEY[code] || {
+                    desc: 'Código gravado no histórico da ECM',
+                    category: 'Histórico ECM',
+                    tip: 'Falha intermitente ou passada registrada pela central.',
+                  };
+
+                  return (
+                    <li
+                      key={`hist-${code}`}
+                      className="bg-[#1a1711] border-l-4 border-amber-500 border-y border-r border-amber-950/60 rounded-r-xl p-4 transition-all hover:bg-[#211d14]"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 font-mono">
+                            <span className="text-lg font-black text-amber-400 bg-amber-950/80 px-2.5 py-0.5 rounded border border-amber-800">
+                              {code}
+                            </span>
+                            <span className="text-sm font-bold text-neutral-100">
+                              {errInfo.desc}
+                            </span>
+                          </div>
+                          <div className="text-xs text-neutral-400 flex items-center gap-2">
+                            <span className="text-orange-400">Sistema: {errInfo.category}</span>
+                            <span className="text-neutral-600">•</span>
+                            <span className="text-amber-400 font-semibold">Estado: Histórico Gravado</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2.5 text-xs bg-black/40 p-2.5 rounded-lg border border-neutral-800/80 text-neutral-300">
+                        <span className="text-orange-400 font-bold">Diagnóstico mecânico: </span>
+                        {errInfo.tip}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
+
+
+        {/* 3. SEÇÃO DE AUDITORIA DE KM & HORAS (Análise Anti-Fraude) */}
         <div id="sec-auditoria" className="scroll-mt-24">
           <div className="bg-[#14151b] border border-orange-500/30 rounded-2xl p-6 shadow-2xl space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-neutral-800 gap-2">
@@ -618,146 +759,6 @@ Gerado via Harley VPW Diagnostic Tool
                   </p>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* 3. SEÇÃO DE CÓDIGOS DE FALHA (DTC CONTAINER) */}
-        <div id="sec-dtc" className="scroll-mt-24 space-y-4">
-          {/* 3A. FALHAS ATUAIS (Nó 0x40 / Ativas) */}
-          <div className="bg-[#161616] border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-neutral-800 pb-3 gap-3">
-              <div className="flex items-center gap-2">
-                <div className="text-sm font-bold uppercase tracking-wider text-red-500">
-                  Falhas Atuais / Presentes (DTC Atual)
-                </div>
-                <span className="text-[10px] font-mono bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded font-bold text-neutral-300">
-                  Total: {activeFaults.length}
-                </span>
-                {checkEngine && (
-                  <span className="text-[10px] font-mono bg-red-950/80 text-red-300 border border-red-700 px-2 py-0.5 rounded-full font-bold uppercase animate-pulse">
-                    Luz de Injeção (MIL) Ativa
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {activeFaults.length === 0 ? (
-              <div className="py-6 text-center flex flex-col items-center">
-                <CheckCircle2 className="w-10 h-10 text-emerald-400 mb-2" />
-                <div className="text-emerald-400 italic text-sm font-medium">
-                  {isConnected ? 'Nenhuma falha ativa registrada no momento.' : 'Aguardando leitura do scanner.'}
-                </div>
-                <p className="text-xs text-neutral-500 mt-1">
-                  Não há falha persistente acendendo a lâmpada de injeção.
-                </p>
-              </div>
-            ) : (
-              <ul className="space-y-3">
-                {activeFaults.map((code) => {
-                  const errInfo = BANCO_ERROS_HARLEY[code] || {
-                    desc: 'Código registrado pela ECU Harley',
-                    category: 'Injeção / Módulo',
-                    tip: 'Consulte o manual de serviço para detalhamento do circuito.',
-                  };
-
-                  return (
-                    <li
-                      key={`active-${code}`}
-                      className="bg-[#1e1111] border-l-4 border-red-500 border-y border-r border-red-950/60 rounded-r-xl p-4 transition-all hover:bg-[#251313]"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 font-mono">
-                            <span className="text-lg font-black text-red-400 bg-red-950/80 px-2.5 py-0.5 rounded border border-red-800">
-                              {code}
-                            </span>
-                            <span className="text-sm font-bold text-neutral-100">
-                              {errInfo.desc}
-                            </span>
-                          </div>
-                          <div className="text-xs text-neutral-400 flex items-center gap-2">
-                            <span className="text-orange-400">Sistema: {errInfo.category}</span>
-                            <span className="text-neutral-600">•</span>
-                            <span className="text-red-400 font-semibold">Estado: Falha Ativa</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-2.5 text-xs bg-black/40 p-2.5 rounded-lg border border-neutral-800/80 text-neutral-300">
-                        <span className="text-orange-400 font-bold">Diagnóstico mecânico: </span>
-                        {errInfo.tip}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-
-          {/* 3B. FALHAS HISTÓRICAS (Nó 0x10 / ECM) */}
-          <div className="bg-[#161616] border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-neutral-800 pb-3 gap-3">
-              <div className="flex items-center gap-2">
-                <div className="text-sm font-bold uppercase tracking-wider text-amber-500">
-                  Falhas Históricas Gravadas na ECM (DTC Histórico)
-                </div>
-                <span className="text-[10px] font-mono bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded font-bold text-neutral-300">
-                  Total: {historicFaults.length}
-                </span>
-              </div>
-            </div>
-
-            {historicFaults.length === 0 ? (
-              <div className="py-6 text-center flex flex-col items-center">
-                <CheckCircle2 className="w-10 h-10 text-emerald-400 mb-2" />
-                <div className="text-emerald-400 italic text-sm font-medium">
-                  {isConnected ? 'Nenhuma falha histórica armazenada na memória da ECM.' : 'Aguardando leitura do scanner.'}
-                </div>
-                <p className="text-xs text-neutral-500 mt-1">
-                  A memória histórica da ECM não contém ocorrências passadas pendentes.
-                </p>
-              </div>
-            ) : (
-              <ul className="space-y-3">
-                {historicFaults.map((code) => {
-                  const errInfo = BANCO_ERROS_HARLEY[code] || {
-                    desc: 'Código gravado no histórico da ECM',
-                    category: 'Histórico ECM',
-                    tip: 'Falha intermitente ou passada registrada pela central.',
-                  };
-
-                  return (
-                    <li
-                      key={`hist-${code}`}
-                      className="bg-[#1a1711] border-l-4 border-amber-500 border-y border-r border-amber-950/60 rounded-r-xl p-4 transition-all hover:bg-[#211d14]"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 font-mono">
-                            <span className="text-lg font-black text-amber-400 bg-amber-950/80 px-2.5 py-0.5 rounded border border-amber-800">
-                              {code}
-                            </span>
-                            <span className="text-sm font-bold text-neutral-100">
-                              {errInfo.desc}
-                            </span>
-                          </div>
-                          <div className="text-xs text-neutral-400 flex items-center gap-2">
-                            <span className="text-orange-400">Sistema: {errInfo.category}</span>
-                            <span className="text-neutral-600">•</span>
-                            <span className="text-amber-400 font-semibold">Estado: Histórico Gravado</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-2.5 text-xs bg-black/40 p-2.5 rounded-lg border border-neutral-800/80 text-neutral-300">
-                        <span className="text-orange-400 font-bold">Diagnóstico mecânico: </span>
-                        {errInfo.tip}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
             )}
           </div>
         </div>
