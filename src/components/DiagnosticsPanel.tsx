@@ -185,228 +185,40 @@ Gerado via Harley VPW Diagnostic Tool
         });
 
   return (
-    <div className="w-full flex flex-col lg:flex-row items-start gap-6">
-      {/* ========================================================
-          BARRA LATERAL FIXA / STICKY (Painel de Controle e Navegação)
-         ======================================================== */}
-      <aside className="w-full lg:w-80 shrink-0 lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto diagnostics-sidebar space-y-4">
-        {/* Card Principal da Barra Lateral */}
-        <div className="bg-[#14151b] border border-neutral-800 rounded-2xl p-5 shadow-2xl space-y-4">
-          {/* Header da Barra */}
-          <div className="border-b border-neutral-800/80 pb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-center justify-center shrink-0">
-                <Wrench className="w-4 h-4 text-orange-500" />
-              </div>
-              <div>
-                <h2 className="text-sm font-black text-neutral-100 uppercase tracking-wide">
-                  Scanner Harley
-                </h2>
-                <div className="text-[11px] font-mono text-neutral-400">
-                  Diagnóstico · Delphi EFI
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-2.5 flex items-center justify-between bg-neutral-900/90 border border-neutral-800 px-2.5 py-1.5 rounded-lg text-[11px] font-mono">
-              <span className="text-neutral-400">Barramento:</span>
-              <span className="flex items-center gap-1.5 font-bold">
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-600'
-                  }`}
-                />
-                <span className={isConnected ? 'text-emerald-400' : 'text-neutral-400'}>
-                  {isConnected ? 'Ativo' : 'Desconectado'}
-                </span>
-              </span>
-            </div>
+    <div className="w-full space-y-5">
+      {/* Barra compacta do scanner: permanece acessível sem consumir uma segunda coluna lateral. */}
+      <div className="diagnostics-toolbar sticky top-3 z-30 bg-[#14151b]/95 backdrop-blur border border-neutral-800 rounded-2xl p-3 shadow-2xl">
+        <div className="flex flex-col xl:flex-row xl:items-center gap-3">
+          <div className="flex items-center gap-3 xl:min-w-[285px]">
+            <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/30 flex items-center justify-center shrink-0"><Wrench className="w-5 h-5 text-orange-500" /></div>
+            <div className="min-w-0"><h2 className="text-sm font-black text-neutral-100 uppercase tracking-wide">Scanner Harley</h2><div className="text-[11px] font-mono text-neutral-400">Diagnóstico · Delphi EFI</div></div>
           </div>
-
-          {/* Botões de Ação Imediata */}
-          <div className="space-y-2">
-            <button
-              onClick={handleDeepScan}
-              disabled={!isConnected || isScanning}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white text-xs font-black rounded-xl transition-all shadow-lg shadow-orange-600/20 disabled:opacity-40 cursor-pointer"
-              title="Executa identificação ECM Harley (3C), leitura de VIN/CalID/SW e consulta de DTCs dos módulos."
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${isScanning ? 'animate-spin text-white' : 'text-white'}`}
-              />
-              <span>{isScanning ? 'Lendo Central ECM...' : 'Ler Scanner Completo'}</span>
-            </button>
-
-            <button
-              onClick={handleClear}
-              disabled={!isConnected || (activeFaults.length === 0 && historicFaults.length === 0 && !justCleared)}
-              className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all border shadow-md disabled:opacity-30 cursor-pointer ${
-                justCleared
-                  ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600'
-                  : 'bg-red-950/60 hover:bg-red-900/80 text-red-200 border-red-800/80'
-              }`}
-              title="Envia comando Harley 14 aos módulos suportados e aguarda confirmação 54."
-            >
-              {justCleared ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              ) : (
-                <Trash2 className="w-4 h-4 text-red-400" />
-              )}
-              <span>
-                {justCleared
-                  ? 'Memória Apagada (14->54)!'
-                  : `Limpar Falhas (${(activeFaults.length + historicFaults.length).toString().padStart(2, '0')})`}
-              </span>
-            </button>
-
-            <button
-              onClick={handleCopyReport}
-              className="w-full flex items-center justify-center gap-2 px-3.5 py-2 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 text-xs font-semibold rounded-xl border border-neutral-700/80 hover:border-neutral-600 transition-all cursor-pointer"
-              title="Copia um relatório completo formatado para colar no WhatsApp, e-mail ou salvar"
-            >
-              {copiedReport ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-emerald-400 font-bold">Laudo Copiado!</span>
-                </>
-              ) : (
-                <>
-                  <FileText className="w-3.5 h-3.5 text-orange-400" />
-                  <span>Copiar Laudo Técnico</span>
-                </>
-              )}
-            </button>
+          <div className="flex items-center justify-between xl:justify-start gap-3 bg-neutral-900/90 border border-neutral-800 px-3 py-2 rounded-xl text-[11px] font-mono xl:min-w-[190px]">
+            <span className="text-neutral-400">Barramento:</span><span className="flex items-center gap-1.5 font-bold"><span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-600'}`} /><span className={isConnected ? 'text-emerald-400' : 'text-neutral-400'}>{isConnected ? 'Ativo' : 'Desconectado'}</span></span>
           </div>
-
-          {/* Mini-Cards de Resumo Vivo */}
-          <div className="border-t border-neutral-800/80 pt-3 space-y-2">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold">
-              Resumo Instantâneo
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-              <div className="bg-[#0c0d12] border border-neutral-800/80 rounded-lg p-2">
-                <span className="text-[10px] text-neutral-500 block">Giro ECM</span>
-                <span className="text-sm font-bold text-orange-400 font-mono">
-                  {rpm}{' '}
-                  <span className="text-[10px] text-neutral-500 font-normal">rpm</span>
-                </span>
-              </div>
-
-              <div className="bg-[#0c0d12] border border-neutral-800/80 rounded-lg p-2">
-                <span className="text-[10px] text-neutral-500 block">Luz Injeção</span>
-                <span
-                  className={`text-xs font-bold ${
-                    checkEngine ? 'text-red-400 animate-pulse' : 'text-emerald-400'
-                  }`}
-                >
-                  {checkEngine ? 'ACESO (MIL)' : 'Normal'}
-                </span>
-              </div>
-
-              <div className="bg-[#0c0d12] border border-neutral-800/80 rounded-lg p-2">
-                <span className="text-[10px] text-neutral-500 block">Códigos DTC</span>
-                <span
-                  className={`text-sm font-bold ${
-                    activeFaults.length > 0 ? 'text-red-400' : 'text-emerald-400'
-                  }`}
-                >
-                  {activeFaults.length} {activeFaults.length === 1 ? 'erro' : 'erros'}
-                </span>
-              </div>
-
-              <div className="bg-[#0c0d12] border border-neutral-800/80 rounded-lg p-2">
-                <span className="text-[10px] text-neutral-500 block">Auditoria KM</span>
-                <span
-                  className={`text-xs font-bold ${
-                    isKmAuditedValid ? 'text-emerald-400' : 'text-amber-400'
-                  }`}
-                >
-                  {isKmAuditedValid ? 'Íntegro' : 'Atenção'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Atalhos Rápidos de Navegação / Âncoras */}
-          <div className="border-t border-neutral-800/80 pt-3 space-y-1">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold mb-1.5">
-              Navegar nas Seções
-            </div>
-
-            <button
-              type="button"
-              onClick={() => scrollToSection('sec-identificacao')}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-neutral-300 hover:text-white hover:bg-neutral-900 transition-all text-left cursor-pointer"
-            >
-              <span className="flex items-center gap-2">
-                <Fingerprint className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Identificação (VIN / ECM)</span>
-              </span>
-              <ChevronRight className="w-3.5 h-3.5 text-neutral-600" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => scrollToSection('sec-auditoria')}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-neutral-300 hover:text-white hover:bg-neutral-900 transition-all text-left cursor-pointer"
-            >
-              <span className="flex items-center gap-2">
-                <ShieldCheck className="w-3.5 h-3.5 text-orange-400" />
-                <span>Auditoria & KM por Perfil</span>
-              </span>
-              <ChevronRight className="w-3.5 h-3.5 text-neutral-600" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => scrollToSection('sec-dtc')}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-neutral-300 hover:text-white hover:bg-neutral-900 transition-all text-left cursor-pointer"
-            >
-              <span className="flex items-center gap-2">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-                <span>Códigos de Falha ({activeFaults.length})</span>
-              </span>
-              <ChevronRight className="w-3.5 h-3.5 text-neutral-600" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => scrollToSection('sec-guia')}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-neutral-300 hover:text-white hover:bg-neutral-900 transition-all text-left cursor-pointer"
-            >
-              <span className="flex items-center gap-2">
-                <Info className="w-3.5 h-3.5 text-blue-400" />
-                <span>Guia Técnico</span>
-              </span>
-              <ChevronRight className="w-3.5 h-3.5 text-neutral-600" />
-            </button>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
+            <button onClick={handleDeepScan} disabled={!isConnected || isScanning} className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white text-xs font-black rounded-xl transition-all shadow-lg shadow-orange-600/20 disabled:opacity-40 cursor-pointer"><RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} /><span>{isScanning ? 'Lendo Central ECM...' : 'Ler Scanner Completo'}</span></button>
+            <button onClick={handleClear} disabled={!isConnected || (activeFaults.length === 0 && historicFaults.length === 0 && !justCleared)} className={`flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all border disabled:opacity-30 cursor-pointer ${justCleared ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600' : 'bg-red-950/60 hover:bg-red-900/80 text-red-200 border-red-800/80'}`}>{justCleared ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Trash2 className="w-4 h-4 text-red-400" />}<span>{justCleared ? 'Memória Apagada!' : `Limpar Falhas (${(activeFaults.length + historicFaults.length).toString().padStart(2, '0')})`}</span></button>
+            <button onClick={handleCopyReport} className="flex items-center justify-center gap-2 px-4 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 text-xs font-semibold rounded-xl border border-neutral-700/80 hover:border-neutral-600 transition-all cursor-pointer">{copiedReport ? <><Check className="w-4 h-4 text-emerald-400" /><span className="text-emerald-400 font-bold">Laudo Copiado!</span></> : <><FileText className="w-4 h-4 text-orange-400" /><span>Copiar Laudo Técnico</span></>}</button>
           </div>
         </div>
-      </aside>
+      </div>
 
-      {/* ========================================================
-          CONTEÚDO PRINCIPAL (Área de Leitura e Detalhes)
-         ======================================================== */}
-      <div className="flex-1 w-full space-y-6">
-        {/* Banner Superior da Área Principal */}
-        <div className="bg-[#14151b] border border-neutral-800 rounded-2xl p-5 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Wrench className="w-5 h-5 text-orange-500" />
-              <h2 className="text-base font-bold text-neutral-100 uppercase tracking-wide">
-                Scanner de Diagnóstico Harley-Davidson
-              </h2>
-            </div>
-            <p className="text-xs text-neutral-400 mt-1">
-              Varredura de Chassi (VIN), P/N do Módulo de Injeção (ECM), Horas de Motor e Códigos Gravados
-            </p>
-          </div>
-          <span className="text-[11px] font-mono text-neutral-400 bg-neutral-900/90 border border-neutral-800 px-3 py-1.5 rounded-xl shrink-0 self-start sm:self-auto">
-            Nó 0x10 ECM Delphi · VPW
-          </span>
-        </div>
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="bg-[#14151b] border border-neutral-800 rounded-xl p-3.5"><span className="text-[10px] text-neutral-500 block font-mono">Giro ECM</span><span className="text-lg font-bold text-orange-400 font-mono">{rpm} <span className="text-[10px] text-neutral-500 font-normal">rpm</span></span></div>
+        <div className="bg-[#14151b] border border-neutral-800 rounded-xl p-3.5"><span className="text-[10px] text-neutral-500 block font-mono">Luz Injeção</span><span className={`text-sm font-bold ${checkEngine ? 'text-red-400 animate-pulse' : 'text-emerald-400'}`}>{checkEngine ? 'ACESO (MIL)' : 'Normal'}</span></div>
+        <div className="bg-[#14151b] border border-neutral-800 rounded-xl p-3.5"><span className="text-[10px] text-neutral-500 block font-mono">Códigos DTC</span><span className={`text-lg font-bold ${activeFaults.length > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{activeFaults.length} {activeFaults.length === 1 ? 'erro' : 'erros'}</span></div>
+        <div className="bg-[#14151b] border border-neutral-800 rounded-xl p-3.5"><span className="text-[10px] text-neutral-500 block font-mono">Auditoria KM</span><span className={`text-sm font-bold ${isKmAuditedValid ? 'text-emerald-400' : 'text-amber-400'}`}>{isKmAuditedValid ? 'Íntegro' : 'Atenção'}</span></div>
+      </div>
 
+      <div className="grid grid-cols-2 lg:grid-cols-4 bg-[#14151b] border border-neutral-800 rounded-xl overflow-hidden">
+        <button type="button" onClick={() => scrollToSection('sec-identificacao')} className="flex items-center justify-center gap-2 px-3 py-3 text-xs text-neutral-300 hover:text-white hover:bg-orange-500/10 transition-all cursor-pointer"><Fingerprint className="w-4 h-4 text-emerald-400" />Identificação</button>
+        <button type="button" onClick={() => scrollToSection('sec-dtc')} className="flex items-center justify-center gap-2 px-3 py-3 text-xs text-neutral-300 hover:text-white hover:bg-orange-500/10 transition-all cursor-pointer"><AlertTriangle className="w-4 h-4 text-red-400" />Falhas (DTC)</button>
+        <button type="button" onClick={() => scrollToSection('sec-auditoria')} className="flex items-center justify-center gap-2 px-3 py-3 text-xs text-neutral-300 hover:text-white hover:bg-orange-500/10 transition-all cursor-pointer"><ShieldCheck className="w-4 h-4 text-orange-400" />Auditoria</button>
+        <button type="button" onClick={() => scrollToSection('sec-guia')} className="flex items-center justify-center gap-2 px-3 py-3 text-xs text-neutral-300 hover:text-white hover:bg-orange-500/10 transition-all cursor-pointer"><Info className="w-4 h-4 text-blue-400" />Guia Técnico</button>
+      </div>
+
+      <div className="w-full space-y-6">
         {/* 1. SEÇÃO DE IDENTIFICAÇÃO (VIN / ECM / RPM) */}
         <div id="sec-identificacao" className="scroll-mt-24 space-y-3">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-400">
