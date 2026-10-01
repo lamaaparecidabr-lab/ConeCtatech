@@ -34,7 +34,7 @@ interface DiagnosticsPanelProps {
   engineHoursTotal?: number;
   engineMinutesTotal?: number;
   engineIgnitionCycles?: number;
-  onReadDTC: () => void;
+  onReadDTC: () => Promise<void>;
   onClearDTC: () => void;
   isConnected: boolean;
 }
@@ -62,12 +62,13 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = ({
   const [copiedReport, setCopiedReport] = useState(false);
   const [dtcFilter, setDtcFilter] = useState<'all' | 'critical'>('all');
 
-  const handleDeepScan = () => {
+  const handleDeepScan = async () => {
     setIsScanning(true);
-    onReadDTC();
-    setTimeout(() => {
+    try {
+      await onReadDTC();
+    } finally {
       setIsScanning(false);
-    }, 1800);
+    }
   };
 
   const handleClear = () => {
