@@ -1084,32 +1084,71 @@ export class ELM327Connection {
     this.onStatusChange('Lendo dados ativos ECM (TTS DPID 0x11: bateria/MAP/TPS)...');
     const hActive11 = await this.chat('ATSH 6C 10 F1', 'OK', 500);
     if (hActive11.success) {
-      const resActive11 = await this.chat('2A 01 11 FF FF FF FF FF', '6CF1106A11', 1500);
-      if (resActive11.success) {
-        activeDpid11Success = 1;
+      // O ELM327 limita normalmente mensagens OBD a 7 data bytes (ATNL).
+      // O frame TTS/HDC2 para um único DPID possui 8 data bytes, então habilitamos
+      // ATAL somente ao redor desta transação e restauramos ATNL em seguida.
+      const allowLong = await this.chat('ATAL', 'OK', 500);
+      if (!allowLong.success) {
         this.onPacketLog({
           id: Math.random().toString(36).substring(2, 9),
           timestamp: new Date().toLocaleTimeString(),
-          type: 'rx',
-          raw: resActive11.reply.trim() || '2A 01 11 FF FF FF FF FF',
-          decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11] Resposta ECM recebida e encaminhada ao decoder.',
-          tag: 'STATUS',
+          type: 'error',
+          raw: allowLong.reply.trim() || 'ATAL -> SEM RESPOSTA',
+          decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11] ELM327 não aceitou ATAL; requisição longa não foi enviada à ECM.',
+          tag: 'AT',
         });
       } else {
-        const normalizedActive11Reply = resActive11.reply.toUpperCase().replace(/[\s:]/g, '');
-        const negativeResponseMatch = normalizedActive11Reply.match(/6CF1107F2A(?:[0-9A-F]{2})*?([0-9A-F]{2})(?:[0-9A-F]{2})?$/);
-        const isNegativeResponse = normalizedActive11Reply.includes('6CF1107F2A');
-        const responseCode = negativeResponseMatch?.[1];
-
         this.onPacketLog({
           id: Math.random().toString(36).substring(2, 9),
           timestamp: new Date().toLocaleTimeString(),
-          type: isNegativeResponse ? 'error' : 'info',
-          raw: resActive11.reply.trim() || '2A 01 11 FF FF FF FF FF -> SEM RESPOSTA',
-          decoded: isNegativeResponse
-            ? `[SOURCE:ECM-ACTIVE][DPID:0x11] ECM respondeu negativamente ao Mode 0x2A${responseCode ? ` (código 0x${responseCode})` : ''}. Resposta preservada para diagnóstico; nenhum valor foi fabricado ou substituído.`
-            : '[SOURCE:ECM-ACTIVE][DPID:0x11] ECM não respondeu. Nenhum valor foi fabricado ou substituído.',
-          tag: 'STATUS',
+          type: 'info',
+          raw: 'ATAL OK',
+          decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11] ELM327 habilitado temporariamente para mensagem longa de 8 data bytes.',
+          tag: 'AT',
+        });
+
+        const resActive11 = await this.chat('2A 01 11 FF FF FF FF FF', '6CF1106A11', 1500);
+        if (resActive11.success) {
+          activeDpid11Success = 1;
+          this.onPacketLog({
+            id: Math.random().toString(36).substring(2, 9),
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'rx',
+            raw: resActive11.reply.trim() || '2A 01 11 FF FF FF FF FF',
+            decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11] Resposta ECM recebida e encaminhada ao decoder.',
+            tag: 'STATUS',
+          });
+        } else {
+          const normalizedActive11Reply = resActive11.reply.toUpperCase().replace(/[\s:]/g, '');
+          const negativeResponseMatch = normalizedActive11Reply.match(/6CF1107F2A(?:[0-9A-F]{2})*?([0-9A-F]{2})(?:[0-9A-F]{2})?$/);
+          const isNegativeResponse = normalizedActive11Reply.includes('6CF1107F2A');
+          const responseCode = negativeResponseMatch?.[1];
+          const elmRejected = normalizedActive11Reply.includes('?');
+
+          this.onPacketLog({
+            id: Math.random().toString(36).substring(2, 9),
+            timestamp: new Date().toLocaleTimeString(),
+            type: isNegativeResponse || elmRejected ? 'error' : 'info',
+            raw: resActive11.reply.trim() || '2A 01 11 FF FF FF FF FF -> SEM RESPOSTA',
+            decoded: isNegativeResponse
+              ? `[SOURCE:ECM-ACTIVE][DPID:0x11] ECM respondeu negativamente ao Mode 0x2A${responseCode ? ` (código 0x${responseCode})` : ''}. Resposta preservada para diagnóstico; nenhum valor foi fabricado ou substituído.`
+              : elmRejected
+                ? '[SOURCE:ECM-ACTIVE][DPID:0x11] ELM327 devolveu ? mesmo com ATAL ativo; frame longo não foi aceito pelo adaptador.'
+                : '[SOURCE:ECM-ACTIVE][DPID:0x11] Nenhuma resposta positiva/negativa da ECM foi recebida. Nenhum valor foi fabricado ou substituído.',
+            tag: 'STATUS',
+          });
+        }
+
+        const normalLength = await this.chat('ATNL', 'OK', 500);
+        this.onPacketLog({
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: normalLength.success ? 'info' : 'error',
+          raw: normalLength.reply.trim() || 'ATNL -> SEM RESPOSTA',
+          decoded: normalLength.success
+            ? '[SOURCE:ECM-ACTIVE][DPID:0x11] ELM327 restaurado para comprimento normal (ATNL).'
+            : '[SOURCE:ECM-ACTIVE][DPID:0x11] Falha ao restaurar ATNL; estado do adaptador deve ser revisto antes da próxima transação.',
+          tag: 'AT',
         });
       }
     } else {
