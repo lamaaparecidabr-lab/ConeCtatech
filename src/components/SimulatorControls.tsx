@@ -26,7 +26,7 @@ export const SimulatorControls: React.FC<SimulatorControlsProps> = ({
         <div className="flex items-center gap-2">
           <Sliders className="w-5 h-5 text-orange-500" />
           <h3 className="text-sm font-bold text-neutral-100 uppercase tracking-wider">
-            Controles do Simulador Harley J1850
+            Controles do Simulador Harley
           </h3>
         </div>
         <span className="text-[11px] font-mono text-orange-400 bg-orange-950/60 border border-orange-800/80 px-2 py-0.5 rounded">

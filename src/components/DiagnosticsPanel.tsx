@@ -133,7 +133,7 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = ({
             .join('\n');
 
     const report = `=====================================================
-LAUDO DE DIAGNÓSTICO E AUDITORIA HARLEY-DAVIDSON (J1850)
+LAUDO DE DIAGNÓSTICO E AUDITORIA HARLEY-DAVIDSON
 Data/Hora: ${now}
 =====================================================
 IDENTIFICAÇÃO:
@@ -160,7 +160,7 @@ ${activeText}
 FALHAS HISTÓRICAS (${historicFaults.length}):
 ${historicText}
 =====================================================
-Gerado via Harley J1850 VPW Diagnostic Tool
+Gerado via Harley VPW Diagnostic Tool
 `;
 
     if (navigator.clipboard) {
@@ -203,7 +203,7 @@ Gerado via Harley J1850 VPW Diagnostic Tool
                   Scanner Harley
                 </h2>
                 <div className="text-[11px] font-mono text-neutral-400">
-                  J1850 VPW · Delphi EFI
+                  VPW Harley · Delphi EFI
                 </div>
               </div>
             </div>
@@ -229,7 +229,7 @@ Gerado via Harley J1850 VPW Diagnostic Tool
               onClick={handleDeepScan}
               disabled={!isConnected || isScanning}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white text-xs font-black rounded-xl transition-all shadow-lg shadow-orange-600/20 disabled:opacity-40 cursor-pointer"
-              title="Executa identificação ECM Harley J1850 (3C), leitura de VIN/CalID/SW e consulta de DTCs dos módulos."
+              title="Executa identificação ECM Harley (3C), leitura de VIN/CalID/SW e consulta de DTCs dos módulos."
             >
               <RefreshCw
                 className={`w-4 h-4 ${isScanning ? 'animate-spin text-white' : 'text-white'}`}
@@ -245,7 +245,7 @@ Gerado via Harley J1850 VPW Diagnostic Tool
                   ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600'
                   : 'bg-red-950/60 hover:bg-red-900/80 text-red-200 border-red-800/80'
               }`}
-              title="Envia comando Harley J1850 14 aos módulos suportados e aguarda confirmação 54."
+              title="Envia comando Harley 14 aos módulos suportados e aguarda confirmação 54."
             >
               {justCleared ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -377,7 +377,7 @@ Gerado via Harley J1850 VPW Diagnostic Tool
             >
               <span className="flex items-center gap-2">
                 <Info className="w-3.5 h-3.5 text-blue-400" />
-                <span>Guia Técnico J1850</span>
+                <span>Guia Técnico</span>
               </span>
               <ChevronRight className="w-3.5 h-3.5 text-neutral-600" />
             </button>
@@ -395,7 +395,7 @@ Gerado via Harley J1850 VPW Diagnostic Tool
             <div className="flex items-center gap-2">
               <Wrench className="w-5 h-5 text-orange-500" />
               <h2 className="text-base font-bold text-neutral-100 uppercase tracking-wide">
-                Scanner de Diagnóstico Harley-Davidson (J1850 / OBD2)
+                Scanner de Diagnóstico Harley-Davidson (Harley / OBD2)
               </h2>
             </div>
             <p className="text-xs text-neutral-400 mt-1">
@@ -427,7 +427,7 @@ Gerado via Harley J1850 VPW Diagnostic Tool
                 </div>
               </div>
               <span className="text-xs font-mono text-neutral-500 bg-neutral-900/80 px-2 py-1 rounded border border-neutral-800">
-                J1850
+                VPW
               </span>
             </div>
 
@@ -484,7 +484,7 @@ Gerado via Harley J1850 VPW Diagnostic Tool
           </div>
         </div>
 
-        {/* 2. SEÇÃO DE AUDITORIA DE KM & HORAS (Análise Anti-Fraude J1850) */}
+        {/* 2. SEÇÃO DE AUDITORIA DE KM & HORAS (Análise Anti-Fraude) */}
         <div id="sec-auditoria" className="scroll-mt-24">
           <div className="bg-[#14151b] border border-orange-500/30 rounded-2xl p-6 shadow-2xl space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-neutral-800 gap-2">
@@ -950,15 +950,15 @@ Gerado via Harley J1850 VPW Diagnostic Tool
           </div>
         </div>
 
-        {/* 4. GUIA TÉCNICO E PROTOCOLO HARLEY J1850 */}
+        {/* 4. GUIA TÉCNICO E PROTOCOLO HARLEY */}
         <div id="sec-guia" className="scroll-mt-24">
           <div className="bg-[#14151b] border border-neutral-800 rounded-2xl p-5 text-xs text-neutral-400 space-y-3">
             <div className="font-bold text-neutral-200 uppercase tracking-wider flex items-center gap-2">
               <Info className="w-4 h-4 text-orange-500" />
-              Protocolo Harley-Davidson J1850 VPW
+              Protocolo Harley-Davidson VPW
             </div>
             <p className="leading-relaxed">
-              O diagnóstico Harley-Davidson opera no barramento SAE J1850 VPW (10.4 kbps) através de comandos específicos mapeados pela comunidade:
+              O diagnóstico Harley-Davidson opera no barramento SAE VPW Harley (10.4 kbps) através de comandos específicos mapeados pela comunidade:
             </p>
             <ul className="list-disc list-inside space-y-1 text-neutral-300 font-mono text-[11px]">
               <li><strong className="text-orange-400">Identificação (ATSH 0C 10 F1):</strong> 3C 01/02 (P/N), 3C 03/04 (CalID), 3C 0B (Software Level), 3C 0F/10/11 (VIN).</li>

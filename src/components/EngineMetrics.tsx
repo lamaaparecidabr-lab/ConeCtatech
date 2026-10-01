@@ -5,6 +5,7 @@ interface EngineMetricsProps {
   engineTempC: number;
   engineTempF: number;
   batteryVoltage: number;
+  elmSupplyVoltage?: number;
   gear: number | 'N';
   tempUnit: 'celsius' | 'fahrenheit';
   onToggleTempUnit: () => void;
@@ -15,6 +16,7 @@ export const EngineMetrics: React.FC<EngineMetricsProps> = ({
   engineTempC,
   engineTempF,
   batteryVoltage,
+  elmSupplyVoltage,
   gear,
   tempUnit,
   onToggleTempUnit,
@@ -27,9 +29,10 @@ export const EngineMetrics: React.FC<EngineMetricsProps> = ({
   const displayTemp = tempUnit === 'celsius' ? `${engineTempC}°C` : `${engineTempF}°F`;
   const subTemp = tempUnit === 'celsius' ? `${engineTempF}°F` : `${engineTempC}°C`;
 
-  // Battery status
-  const isCharging = batteryVoltage >= 13.4;
-  const isLowBattery = batteryVoltage < 12.2 && batteryVoltage > 0;
+  // ATRV é a alimentação medida pelo ELM327. batteryVoltage fica reservado à futura leitura ECM/J1850.
+  const displayedSupplyVoltage = elmSupplyVoltage ?? 0;
+  const isCharging = displayedSupplyVoltage >= 13.4;
+  const isLowBattery = displayedSupplyVoltage < 12.2 && displayedSupplyVoltage > 0;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl mx-auto">
@@ -47,7 +50,7 @@ export const EngineMetrics: React.FC<EngineMetricsProps> = ({
               }`}
             />
             <span className="text-xs font-mono font-medium tracking-wider text-neutral-400 uppercase">
-              Temp. Motor (J1850)
+              Temp. Motor
             </span>
           </div>
           <button
@@ -113,7 +116,7 @@ export const EngineMetrics: React.FC<EngineMetricsProps> = ({
               }`}
             />
             <span className="text-xs font-mono font-medium tracking-wider text-neutral-400 uppercase">
-              Tensão da Bateria
+              Alimentação ELM327
             </span>
           </div>
           <span className="text-[10px] font-mono text-neutral-400">Pino 16 OBD</span>
@@ -126,7 +129,7 @@ export const EngineMetrics: React.FC<EngineMetricsProps> = ({
                 isLowBattery ? 'text-red-500' : 'text-neutral-100'
               }`}
             >
-              {batteryVoltage.toFixed(1)}
+              {displayedSupplyVoltage > 0 ? displayedSupplyVoltage.toFixed(1) : '--.-'}
             </span>
             <span className="text-xs font-mono text-neutral-400 ml-1">V DC</span>
           </div>
@@ -152,7 +155,7 @@ export const EngineMetrics: React.FC<EngineMetricsProps> = ({
                 isCharging ? 'bg-emerald-500' : isLowBattery ? 'bg-red-500' : 'bg-blue-500'
               }`}
               style={{
-                width: `${Math.min(100, Math.max(5, ((batteryVoltage - 11) / (15 - 11)) * 100))}%`,
+                width: `${Math.min(100, Math.max(5, ((displayedSupplyVoltage - 11) / (15 - 11)) * 100))}%`,
               }}
             />
           </div>
@@ -190,7 +193,7 @@ export const EngineMetrics: React.FC<EngineMetricsProps> = ({
           <div className="text-right">
             <div className="text-xs text-neutral-400">Protocolo Ativo</div>
             <div className="text-xs font-mono font-bold text-neutral-200">
-              J1850 VPW 10.4K
+              VPW Harley 10.4K
             </div>
           </div>
         </div>

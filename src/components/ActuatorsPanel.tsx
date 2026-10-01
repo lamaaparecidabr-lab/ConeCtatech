@@ -168,7 +168,7 @@ export const ActuatorsPanel: React.FC<ActuatorsPanelProps> = ({
               </h2>
             </div>
             <p className="mt-1 text-xs text-neutral-400 max-w-2xl">
-              Envio de rotinas de controle ativas (Modo 30 / J1850) para a injeção eletrônica Delphi, módulo de segurança TSSM e instrumentos físicos da motocicleta.
+              Envio de rotinas de controle ativas (Modo 30) para a injeção eletrônica Delphi, módulo de segurança TSSM e instrumentos físicos da motocicleta.
             </p>
           </div>
 

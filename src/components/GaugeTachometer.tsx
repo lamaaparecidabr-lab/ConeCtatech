@@ -99,7 +99,7 @@ export const GaugeTachometer: React.FC<GaugeTachometerProps> = ({ rpm, maxRpm = 
       {/* Top Header Label */}
       <div className="flex items-center justify-between w-full px-2 mb-1">
         <span className="text-[11px] font-mono tracking-widest text-neutral-400 uppercase">
-          Tacômetro · J1850
+          Tacômetro
         </span>
         {isRedline && (
           <span className="text-[10px] font-black uppercase text-red-500 animate-pulse px-2 py-0.5 bg-red-950/80 rounded border border-red-800">

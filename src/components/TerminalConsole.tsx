@@ -54,7 +54,7 @@ export const TerminalConsole: React.FC<TerminalConsoleProps> = ({
   const quickCommands = [
     { label: 'ATZ (Reset)', cmd: 'ATZ' },
     { label: 'ATE0 (Echo Off)', cmd: 'ATE0' },
-    { label: 'ATSP2 (J1850 VPW)', cmd: 'ATSP2' },
+    { label: 'ATSP2 (VPW Harley)', cmd: 'ATSP2' },
     { label: 'ATMA (Monitor All)', cmd: 'ATMA' },
     { label: 'ATRV (Tensão)', cmd: 'ATRV' },
     { label: '010C (PID RPM)', cmd: '010C' },
@@ -71,7 +71,7 @@ export const TerminalConsole: React.FC<TerminalConsoleProps> = ({
         <div className="flex items-center gap-2">
           <Terminal className="w-4 h-4 text-orange-500" />
           <span className="text-xs font-mono font-bold text-neutral-200 uppercase tracking-wider">
-            Terminal ELM327 & Sniffer J1850
+            Terminal ELM327 & Sniffer
           </span>
           <span className="text-[10px] font-mono text-neutral-400">
             ({logs.length} pacotes)
@@ -151,7 +151,7 @@ export const TerminalConsole: React.FC<TerminalConsoleProps> = ({
       >
         {filteredLogs.length === 0 ? (
           <div className="text-neutral-500 italic py-8 text-center">
-            Aguardando pacotes de dados Bluetooth / Serial J1850...
+            Aguardando pacotes de dados Bluetooth / Serial...
             <div className="text-[11px] text-neutral-600 mt-1">
               Conecte seu adaptador ELM327 ou inicie o Simulador Harley para ver os dados.
             </div>

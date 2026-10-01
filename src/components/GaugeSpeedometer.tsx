@@ -108,7 +108,7 @@ export const GaugeSpeedometer: React.FC<GaugeSpeedometerProps> = ({
       {/* Header with Unit Toggle */}
       <div className="flex items-center justify-between w-full px-2 mb-1">
         <span className="text-[11px] font-mono tracking-widest text-neutral-400 uppercase">
-          Velocímetro · J1850
+          Velocímetro
         </span>
         <button
           onClick={onToggleUnit}

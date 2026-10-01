@@ -11,6 +11,8 @@ interface ConnectionModalProps {
   config: ConnectionConfig;
   onChangeConfig: (newConfig: ConnectionConfig) => void;
   currentType: ConnectionType;
+  uiSkin: 'original' | 'orange' | 'dark';
+  onChangeUiSkin: (skin: 'original' | 'orange' | 'dark') => void;
 }
 
 export const ConnectionModal: React.FC<ConnectionModalProps> = ({
@@ -22,6 +24,8 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
   config,
   onChangeConfig,
   currentType,
+  uiSkin,
+  onChangeUiSkin,
 }) => {
   if (!isOpen) return null;
 
@@ -36,7 +40,7 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
             </div>
             <div>
               <h2 className="text-sm sm:text-base font-bold text-neutral-100">ConeCtaHarley · Conexão ELM327</h2>
-              <p className="text-[11px] sm:text-xs text-neutral-400">Comunicação J1850 VPW com a ECU Harley-Davidson</p>
+              <p className="text-[11px] sm:text-xs text-neutral-400">Comunicação VPW Harley com a ECU Harley-Davidson</p>
             </div>
           </div>
           <button
@@ -126,8 +130,8 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
                   }
                   className="w-full bg-black/60 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-200 focus:outline-none focus:border-orange-500 font-mono text-xs"
                 >
-                  <option value="ATSP2">ATSP2 - SAE J1850 VPW (Harley)</option>
-                  <option value="ATSP1">ATSP1 - SAE J1850 PWM</option>
+                  <option value="ATSP2">ATSP2 - SAE VPW Harley (Harley)</option>
+                  <option value="ATSP1">ATSP1 - PWM</option>
                   <option value="ATSP0">ATSP0 - Auto Detect</option>
                 </select>
               </div>
@@ -167,6 +171,32 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
             </div>
           </div>
 
+          {/* Aparência: preserva a skin original e permite escolher as novas identidades */}
+          <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-3.5 sm:p-4 space-y-3">
+            <span className="text-xs font-mono font-bold text-neutral-300 uppercase tracking-wider block">Tema da Interface</span>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                ['original', 'Original'],
+                ['orange', 'ConeCtaHarley Orange'],
+                ['dark', 'ConeCtaHarley Dark'],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => onChangeUiSkin(value)}
+                  className={`px-2 py-2.5 rounded-lg border text-[11px] font-bold transition-all ${
+                    uiSkin === value
+                      ? value === 'dark' ? 'border-red-500 bg-red-950/40 text-red-300' : value === 'orange' ? 'border-orange-500 bg-orange-950/40 text-orange-300' : 'border-sky-500 bg-sky-950/40 text-sky-300'
+                      : 'border-neutral-700 bg-black/30 text-neutral-400 hover:text-neutral-200'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-neutral-500">A escolha fica salva neste dispositivo. A skin altera somente a apresentação; scanner, telemetria e diagnóstico permanecem os mesmos.</p>
+          </div>
+
           {/* Harley-Davidson Pinout Help */}
           <div className="p-3 bg-neutral-900/30 border border-neutral-800 rounded-xl text-xs text-neutral-400 space-y-1.5">
             <div className="flex items-center gap-1.5 text-neutral-300 font-bold">
@@ -174,7 +204,7 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
               <span>Conector de Diagnóstico da Harley-Davidson:</span>
             </div>
             <p className="text-[11px] sm:text-xs">
-              • <strong>Modelos até 2013 (Sportster, Dyna, Softail, Touring)</strong>: Conector Deutsch de 4 pinos sob o banco ou lateral esquerda (Pino 1: Barramento J1850, Pino 2: Terra GND, Pino 3: +12V Bateria).
+              • <strong>Modelos até 2013 (Sportster, Dyna, Softail, Touring)</strong>: Conector Deutsch de 4 pinos sob o banco ou lateral esquerda (Pino 1: Barramento de diagnóstico, Pino 2: Terra GND, Pino 3: +12V Bateria).
             </p>
             <p className="text-[11px] sm:text-xs">
               • Use um cabo adaptador <span className="text-neutral-200">Deutsch 4 pinos para OBD2 16 pinos padrão</span> conectado ao dongle ELM327.
@@ -182,7 +212,7 @@ export const ConnectionModal: React.FC<ConnectionModalProps> = ({
             <div className="pt-2 border-t border-neutral-800 text-[11px] text-neutral-400 space-y-1.5">
               <div>
                 <span className="text-orange-400 font-bold">Dica Crucial na Harley: </span>
-                A ignição da moto precisa estar ligada e o <strong className="text-neutral-200">botão vermelho RUN/STOP no guidão deve estar na posição RUN (LIGADO)</strong>. Se estiver em STOP, a ECU Delphi fica sem energia e não transmite dados no barramento J1850.
+                A ignição da moto precisa estar ligada e o <strong className="text-neutral-200">botão vermelho RUN/STOP no guidão deve estar na posição RUN (LIGADO)</strong>. Se estiver em STOP, a ECU Delphi fica sem energia e não transmite dados no barramento de diagnóstico.
               </div>
               <div>
                 <span className="text-amber-400 font-bold">Tipo de Bluetooth do seu ELM327: </span>

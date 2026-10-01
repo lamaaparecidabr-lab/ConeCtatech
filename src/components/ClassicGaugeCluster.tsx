@@ -26,7 +26,7 @@ export const ClassicGaugeCluster: React.FC<ClassicGaugeClusterProps> = ({
           <div className="absolute inset-0 rounded-full border border-orange-500/10 pointer-events-none" />
           
           <div className="text-xs uppercase font-mono tracking-widest text-neutral-500 mb-1">
-            Harley-Davidson J1850
+            Harley-Davidson
           </div>
 
           <div
