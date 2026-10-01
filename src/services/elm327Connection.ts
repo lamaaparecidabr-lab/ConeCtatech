@@ -763,6 +763,35 @@ export class ELM327Connection {
   }
 
   /**
+   * Interrompe ATMA e só libera a próxima transação depois que o prompt ">"
+   * do ELM foi realmente recebido pelo mesmo pipeline RX persistente.
+   */
+  private async stopMonitorAndWaitForPrompt(timeoutMs: number = 1500): Promise<boolean> {
+    return new Promise(async (resolve) => {
+      let done = false;
+      const finish = (ok: boolean) => {
+        if (done) return;
+        done = true;
+        const idx = this.responseListeners.indexOf(listener);
+        if (idx !== -1) this.responseListeners.splice(idx, 1);
+        clearTimeout(timer);
+        if (ok) {
+          // Qualquer fragmento anterior ao prompt pertence ao monitor interrompido.
+          this.rxBuffer = '';
+        }
+        resolve(ok);
+      };
+      const listener = (line: string) => {
+        if (line.trim() === '>') finish(true);
+      };
+      this.responseListeners.push(listener);
+      const timer = setTimeout(() => finish(false), timeoutMs);
+      const sent = await this.sendBreak();
+      if (!sent) finish(false);
+    });
+  }
+
+  /**
    * Mecanismo chat(send, expect, timeout) equivalente ao HarleyDroid
    * Transmite comando e aguarda resposta esperada antes de prosseguir
    * Suporta tokens alternativos via separador '|' (ex: "ELM|STN|OBD") ou RegExp explícita (ex: /\d+(?:\.\d+)?\s*V/i)
@@ -844,8 +873,27 @@ export class ELM327Connection {
 
       this.onStatusChange('Interrompendo monitoramento contínuo (ATMA)...');
     this.stopActivePolling();
-    await this.sendBreak();
-    await sleep(350);
+    const monitorStopped = await this.stopMonitorAndWaitForPrompt(1800);
+    if (!monitorStopped) {
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'error',
+        raw: 'ATMA_BREAK_NO_PROMPT',
+        decoded: '[DIAGNÓSTICO] ATMA interrompido sem confirmação do prompt >. Scanner cancelado para não misturar monitoramento e comandos ativos.',
+        tag: 'STATUS',
+      });
+      this.onStatusChange('Não foi possível sincronizar o ELM após interromper o monitoramento.', true);
+      return;
+    }
+    this.onPacketLog({
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toLocaleTimeString(),
+      type: 'info',
+      raw: 'ATMA_BREAK_PROMPT_OK',
+      decoded: '[DIAGNÓSTICO] ATMA interrompido e prompt > confirmado. Iniciando transação ativa.',
+      tag: 'STATUS',
+    });
 
     // Reseta apenas estado de diagnóstico sem zerar odômetro live
     this.decoder.resetDiagnosticState();
