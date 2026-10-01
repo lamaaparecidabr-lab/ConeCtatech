@@ -642,8 +642,8 @@ export class ELM327Connection {
       logHandshakeSuccess('ATS0', 'OK');
       await sleep(100);
 
-      // 5. ATH1 (Headers ON) - CRÍTICO para Harley J1850 VPW
-      this.onStatusChange('Ativando Headers J1850 (ATH1)...');
+      // 5. ATH1 (Headers ON) - CRÍTICO para Harley VPW
+      this.onStatusChange('Ativando Headers de diagnóstico (ATH1)...');
       const rAth1 = await this.chat('ATH1', 'OK', 1000);
       if (!rAth1.success) {
         logHandshakeFailure('ATH1', rAth1.reply);
@@ -654,7 +654,7 @@ export class ELM327Connection {
 
       // 6. Protocolo J1850 (ATSP2)
       const protoCmd = config.protocol || 'ATSP2';
-      this.onStatusChange(`Definindo protocolo ${protoCmd} (Harley J1850 VPW)...`);
+      this.onStatusChange(`Definindo protocolo ${protoCmd} (Harley VPW)...`);
       const rProto = await this.chat(protoCmd, 'OK', 1200);
       if (!rProto.success) {
         logHandshakeFailure(protoCmd, rProto.reply);
@@ -680,18 +680,18 @@ export class ELM327Connection {
         timestamp: new Date().toLocaleTimeString(),
         type: 'info',
         raw: 'ELM_READY',
-        decoded: '[ELM-HANDSHAKE] Handshake concluído com sucesso! Protocolo Harley J1850 ativo.',
+        decoded: '[ELM-HANDSHAKE] Handshake concluído com sucesso! Protocolo Harley ativo.',
         tag: 'AT',
       });
 
       // 8. Ativação do modo Live (ATMA ou Polling)
       if (config.monitorMode) {
         this.stopActivePolling();
-        this.onStatusChange('Ativando Monitor J1850 contínuo (ATMA)...');
+        this.onStatusChange('Ativando Monitor de diagnóstico contínuo (ATMA)...');
         await this.sendCommand('ATMA');
         this.onStatusChange('Painel Harley-Davidson Ativo (ATMA)!');
       } else {
-        this.onStatusChange('Conectado ao ELM327! Modo Harley J1850 Ativo...');
+        this.onStatusChange('Conectado ao ELM327! Modo Harley Ativo...');
         this.startActivePolling();
       }
     } catch (err: any) {
@@ -707,7 +707,7 @@ export class ELM327Connection {
       return;
     }
 
-    // Em modo Harley J1850, ATRV é consultado apenas como alimentação do ELM327; não é tensão ECM/J1850
+    // Em modo Harley, ATRV é consultado apenas como alimentação do ELM327; não é tensão ECM/J1850
     this.pollTimer = setInterval(async () => {
       if (this.connectionType === 'disconnected' || this.connectionType === 'simulator') {
         this.stopActivePolling();
@@ -1043,7 +1043,7 @@ export class ELM327Connection {
           timestamp: new Date().toLocaleTimeString(),
           type: 'rx',
           raw: resActive11.reply.trim() || '2A 01 11',
-          decoded: '[SOURCE:J1850-ACTIVE][DPID:0x11] Resposta ECM recebida e encaminhada ao decoder.',
+          decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11] Resposta ECM recebida e encaminhada ao decoder.',
           tag: 'STATUS',
         });
       } else {
@@ -1052,7 +1052,7 @@ export class ELM327Connection {
           timestamp: new Date().toLocaleTimeString(),
           type: 'info',
           raw: '2A 01 11 -> SEM RESPOSTA',
-          decoded: '[SOURCE:J1850-ACTIVE][DPID:0x11] ECM não respondeu. Nenhum valor foi fabricado ou substituído.',
+          decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11] ECM não respondeu. Nenhum valor foi fabricado ou substituído.',
           tag: 'STATUS',
         });
       }
@@ -1062,7 +1062,7 @@ export class ELM327Connection {
         timestamp: new Date().toLocaleTimeString(),
         type: 'error',
         raw: 'ATSH 6C 10 F1 FAIL',
-        decoded: '[SOURCE:J1850-ACTIVE][DPID:0x11] Falha ao configurar cabeçalho; requisição ativa não enviada.',
+        decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11] Falha ao configurar cabeçalho; requisição ativa não enviada.',
         tag: 'AT',
       });
     }
@@ -1104,7 +1104,7 @@ export class ELM327Connection {
   }
 
   /**
-   * Procedimento de limpeza de falhas Harley J1850 (HarleyDroid clearDTC)
+   * Procedimento de limpeza de falhas Harley (HarleyDroid clearDTC)
    * Envia sequencialmente: 6C 10 F1 14, 6C 40 F1 14, 6C 60 F1 14
    */
   public async clearDTC(): Promise<boolean> {
@@ -1177,7 +1177,7 @@ export class ELM327Connection {
     await this.sendCommand('ATSH 68 6A F1');
     await sleep(200);
 
-    // Se monitorMode for true (padrão Harley J1850), restaura ATMA
+    // Se monitorMode for true (padrão Harley), restaura ATMA
     if (this.activeConfig?.monitorMode !== false) {
       await this.sendCommand('ATMA');
       this.onStatusChange('Painel Harley-Davidson Ativo (ATMA)!');
@@ -1327,7 +1327,7 @@ export class ELM327Connection {
   }
 
   /**
-   * Start Harley-Davidson J1850 Simulator
+   * Start Harley-Davidson Simulator
    */
   public startSimulator() {
     this.disconnect();
@@ -1372,13 +1372,13 @@ export class ELM327Connection {
       lastUpdated: Date.now(),
     };
 
-    this.onStatusChange('Simulador Harley J1850 Ativo! Motor em marcha lenta.');
+    this.onStatusChange('Simulador Harley Ativo! Motor em marcha lenta.');
     this.onPacketLog({
       id: Math.random().toString(36).substring(2, 9),
       timestamp: new Date().toLocaleTimeString(),
       type: 'info',
       raw: 'SIMULATOR_STARTED',
-      decoded: 'Simulador Harley-Davidson Big Twin iniciado com transmissão J1850 ativa',
+      decoded: 'Simulador Harley-Davidson Big Twin iniciado com transmissão de diagnóstico ativa',
       tag: 'STATUS',
     });
 
@@ -1419,7 +1419,7 @@ export class ELM327Connection {
         this.simTempF += 0.05;
       }
 
-      // Transmissão periódica dos frames J1850 da Harley (pausada durante varredura diagnóstica)
+      // Transmissão periódica dos frames diagnóstico da Harley (pausada durante varredura diagnóstica)
       if (!this.simStreamPaused && tick % 2 === 0) {
         // Frame RPM: 28 1B 10 02 XX XX
         const rpmHex = (Math.round(this.simRpm * 4)).toString(16).padStart(4, '0').toUpperCase();
@@ -1452,7 +1452,7 @@ export class ELM327Connection {
         const odoHex = ticks.toString(16).padStart(4, '0').toUpperCase();
         const odoFrame = `A8 69 10 06 ${odoHex.substring(0, 2)} ${odoHex.substring(2, 4)}`;
 
-        // Processa os frames J1850 pelo decoder oficial e atualiza o estado de telemetria
+        // Processa os frames pelo decoder oficial e atualiza o estado de telemetria
         this.currentTelemetryState = this.decoder.parseChunk(
           `${rpmFrame}\r\n${speedFrame}\r\n${tempFrame}\r\n${gearFrame}\r\n${neutralFrame}\r\n${odoFrame}\r\n`,
           this.currentTelemetryState,
@@ -1494,7 +1494,7 @@ export class ELM327Connection {
   }
 
   /**
-   * Simula comandos Harley J1850 de acordo com as consultas do HarleyDroid
+   * Simula comandos Harley de acordo com as consultas do HarleyDroid
    */
   private simulateCommandResponse(cmd: string) {
     const u = cmd.toUpperCase().trim();
@@ -1601,7 +1601,7 @@ export class ELM327Connection {
             timestamp: new Date().toLocaleTimeString(),
             type: 'rx',
             raw: '68 88 10 83',
-            decoded: 'Harley J1850: Lâmpada de Injeção Eletrônica (MIL) ATIVADA [Nova Falha]',
+            decoded: 'Harley: Lâmpada de Injeção Eletrônica (MIL) ATIVADA [Nova Falha]',
             tag: 'DTC',
           });
 
@@ -1665,7 +1665,7 @@ export class ELM327Connection {
 
     try {
       await this.sendCommand(cmd);
-      return { success: true, message: `Comando [${cmd}] transmitido com sucesso ao barramento J1850.` };
+      return { success: true, message: `Comando [${cmd}] transmitido com sucesso ao barramento de diagnóstico.` };
     } catch (e: any) {
       return { success: false, message: `Falha ao transmitir: ${e.message || e}` };
     }

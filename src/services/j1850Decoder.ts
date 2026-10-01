@@ -1,7 +1,7 @@
 import { TelemetryData, PacketLog } from '../types';
 
 /**
- * Cálculo e validação do CRC J1850 VPW (polinômio 0x1D, valor inicial 0xFF)
+ * Cálculo e validação do CRC VPW Harley (polinômio 0x1D, valor inicial 0xFF)
  * Baseado fielmente na implementação do HarleyDroid (J1850.java)
  */
 export function computeJ1850Crc(bytes: number[]): number {
@@ -39,7 +39,7 @@ export function validateJ1850Crc(bytesWithCrc: number[]): boolean {
 export class J1850Decoder {
   private buffer: string = '';
 
-  // Buffers persistentes para montagem progressiva dos blocos Harley J1850 (HarleyDroid)
+  // Buffers persistentes para montagem progressiva dos blocos Harley (HarleyDroid)
   private vinChars: string[] = Array(17).fill('-');
   private ecmPnChars: string[] = Array(12).fill('-');
   private ecmCalIdChars: string[] = Array(12).fill('-');
@@ -200,7 +200,7 @@ export class J1850Decoder {
             timestamp: new Date().toLocaleTimeString(),
             type: 'rx',
             raw: originalLine,
-            decoded: `[SOURCE:J1850-BROADCAST] Harley J1850 RPM: ${telemetry.rpm} RPM [hex:${hexBytes}]`,
+            decoded: `[SOURCE:BROADCAST] Harley RPM: ${telemetry.rpm} RPM [hex:${hexBytes}]`,
             tag: 'RPM',
           };
         }
@@ -226,7 +226,7 @@ export class J1850Decoder {
             timestamp: new Date().toLocaleTimeString(),
             type: 'rx',
             raw: originalLine,
-            decoded: `[SOURCE:J1850-BROADCAST] Harley J1850 Velocidade: ${telemetry.speedKmH} km/h (${telemetry.speedMph} mph) [hex:${hexBytes}]`,
+            decoded: `[SOURCE:BROADCAST] Harley Velocidade: ${telemetry.speedKmH} km/h (${telemetry.speedMph} mph) [hex:${hexBytes}]`,
             tag: 'SPEED',
           };
         }
@@ -249,7 +249,7 @@ export class J1850Decoder {
             timestamp: new Date().toLocaleTimeString(),
             type: 'rx',
             raw: originalLine,
-            decoded: `[SOURCE:J1850-BROADCAST] Harley J1850 Temp Motor: ${telemetry.engineTempC}°C / ${telemetry.engineTempF}°F [hex:${hexByte}]`,
+            decoded: `[SOURCE:BROADCAST] Harley Temp Motor: ${telemetry.engineTempC}°C / ${telemetry.engineTempF}°F [hex:${hexByte}]`,
             tag: 'TEMP',
           };
         }
@@ -280,7 +280,7 @@ export class J1850Decoder {
               timestamp: new Date().toLocaleTimeString(),
               type: 'rx',
               raw: originalLine,
-              decoded: `[SOURCE:J1850-BROADCAST] Marcha: byte não reconhecido 0x${hexVal.toString(16).padStart(2, '0').toUpperCase()} — estado anterior preservado`,
+              decoded: `[SOURCE:BROADCAST] Marcha: byte não reconhecido 0x${hexVal.toString(16).padStart(2, '0').toUpperCase()} — estado anterior preservado`,
               tag: 'STATUS',
             };
             return { telemetry, packetLog };
@@ -299,7 +299,7 @@ export class J1850Decoder {
             timestamp: new Date().toLocaleTimeString(),
             type: 'rx',
             raw: originalLine,
-            decoded: `[SOURCE:J1850-BROADCAST] Harley J1850 Marcha: ${hexVal === 0 ? 'SEM MARCHA (aguardando estado de neutro)' : `${gear}ª Marcha`} [hex:0x${hexVal.toString(16).padStart(2, '0')}]`,
+            decoded: `[SOURCE:BROADCAST] Harley Marcha: ${hexVal === 0 ? 'SEM MARCHA (aguardando estado de neutro)' : `${gear}ª Marcha`} [hex:0x${hexVal.toString(16).padStart(2, '0')}]`,
             tag: 'STATUS',
           };
         }
@@ -335,7 +335,7 @@ export class J1850Decoder {
             timestamp: new Date().toLocaleTimeString(),
             type: 'rx',
             raw: originalLine,
-            decoded: `[SOURCE:J1850-BROADCAST] Harley J1850: Neutro=${neutralState === undefined ? 'SEM ALTERAÇÃO' : neutralState ? 'SIM' : 'NÃO'} | Embreagem=${isClutch ? 'ACIONADA' : 'LIVRE'} [hex:0x${xx.toString(16).padStart(2, '0')}]`,
+            decoded: `[SOURCE:BROADCAST] Harley: Neutro=${neutralState === undefined ? 'SEM ALTERAÇÃO' : neutralState ? 'SIM' : 'NÃO'} | Embreagem=${isClutch ? 'ACIONADA' : 'LIVRE'} [hex:0x${xx.toString(16).padStart(2, '0')}]`,
             tag: 'STATUS',
           };
         }
@@ -360,7 +360,7 @@ export class J1850Decoder {
             timestamp: new Date().toLocaleTimeString(),
             type: 'rx',
             raw: originalLine,
-            decoded: `Harley J1850 Setas: Esq=${telemetry.turnLeft ? 'ON' : 'OFF'} | Dir=${telemetry.turnRight ? 'ON' : 'OFF'}`,
+            decoded: `Harley Setas: Esq=${telemetry.turnLeft ? 'ON' : 'OFF'} | Dir=${telemetry.turnRight ? 'ON' : 'OFF'}`,
             tag: 'STATUS',
           };
         }
@@ -396,7 +396,7 @@ export class J1850Decoder {
               timestamp: new Date().toLocaleTimeString(),
               type: 'rx',
               raw: originalLine,
-              decoded: `Harley J1850 Odômetro: ${kmTotal.toLocaleString()} km (Ticks: ${this.odoaccum})`,
+              decoded: `Harley Odômetro: ${kmTotal.toLocaleString()} km (Ticks: ${this.odoaccum})`,
               tag: 'STATUS',
             };
           }
@@ -435,7 +435,7 @@ export class J1850Decoder {
           timestamp: new Date().toLocaleTimeString(),
           type: 'rx',
           raw: originalLine,
-          decoded: `Harley J1850 Combustível: nível bruto ${fuelLevelRaw}/15 | Reserva/Baixo: ${fuelLow ? 'SIM' : 'NÃO'}`,
+          decoded: `Harley Combustível: nível bruto ${fuelLevelRaw}/15 | Reserva/Baixo: ${fuelLow ? 'SIM' : 'NÃO'}`,
           tag: 'STATUS',
         };
       }
@@ -451,7 +451,7 @@ export class J1850Decoder {
         timestamp: new Date().toLocaleTimeString(),
         type: 'rx',
         raw: originalLine,
-        decoded: 'Harley J1850: Lâmpada de Injeção Eletrônica (MIL) ATIVADA [Falha Ativa]',
+        decoded: 'Harley: Lâmpada de Injeção Eletrônica (MIL) ATIVADA [Falha Ativa]',
         tag: 'DTC',
       };
     } else if (cleanHex.includes('68881003')) {
@@ -461,7 +461,7 @@ export class J1850Decoder {
         timestamp: new Date().toLocaleTimeString(),
         type: 'rx',
         raw: originalLine,
-        decoded: 'Harley J1850: Lâmpada de Injeção Eletrônica (MIL) DESLIGADA [OK]',
+        decoded: 'Harley: Lâmpada de Injeção Eletrônica (MIL) DESLIGADA [OK]',
         tag: 'STATUS',
       };
     }
@@ -490,7 +490,7 @@ export class J1850Decoder {
               timestamp: new Date().toLocaleTimeString(),
               type: 'rx',
               raw: originalLine,
-              decoded: `Harley J1850: ECM P/N Bloco 1 recebido`,
+              decoded: `Harley: ECM P/N Bloco 1 recebido`,
               tag: 'STATUS',
             };
             break;
@@ -508,7 +508,7 @@ export class J1850Decoder {
               timestamp: new Date().toLocaleTimeString(),
               type: 'rx',
               raw: originalLine,
-              decoded: `Harley J1850: ECM P/N Bloco 2 recebido -> P/N: ${telemetry.ecuPartNumber || 'Incompleto'}`,
+              decoded: `Harley: ECM P/N Bloco 2 recebido -> P/N: ${telemetry.ecuPartNumber || 'Incompleto'}`,
               tag: 'STATUS',
             };
             break;
@@ -526,7 +526,7 @@ export class J1850Decoder {
               timestamp: new Date().toLocaleTimeString(),
               type: 'rx',
               raw: originalLine,
-              decoded: `Harley J1850: Cal ID Bloco 1 recebido`,
+              decoded: `Harley: Cal ID Bloco 1 recebido`,
               tag: 'STATUS',
             };
             break;
@@ -544,7 +544,7 @@ export class J1850Decoder {
               timestamp: new Date().toLocaleTimeString(),
               type: 'rx',
               raw: originalLine,
-              decoded: `Harley J1850: Cal ID Bloco 2 recebido -> CalID: ${telemetry.ecuCalId || 'Incompleto'}`,
+              decoded: `Harley: Cal ID Bloco 2 recebido -> CalID: ${telemetry.ecuCalId || 'Incompleto'}`,
               tag: 'STATUS',
             };
             break;
@@ -560,7 +560,7 @@ export class J1850Decoder {
                 timestamp: new Date().toLocaleTimeString(),
                 type: 'rx',
                 raw: originalLine,
-                decoded: `Harley J1850: ECM Software Level = ${swLevel}`,
+                decoded: `Harley: ECM Software Level = ${swLevel}`,
                 tag: 'STATUS',
               };
             }
@@ -579,7 +579,7 @@ export class J1850Decoder {
               timestamp: new Date().toLocaleTimeString(),
               type: 'rx',
               raw: originalLine,
-              decoded: `Harley J1850: VIN Bloco 1 recebido`,
+              decoded: `Harley: VIN Bloco 1 recebido`,
               tag: 'STATUS',
             };
             break;
@@ -597,7 +597,7 @@ export class J1850Decoder {
               timestamp: new Date().toLocaleTimeString(),
               type: 'rx',
               raw: originalLine,
-              decoded: `Harley J1850: VIN Bloco 2 recebido`,
+              decoded: `Harley: VIN Bloco 2 recebido`,
               tag: 'STATUS',
             };
             break;
@@ -615,7 +615,7 @@ export class J1850Decoder {
               timestamp: new Date().toLocaleTimeString(),
               type: 'rx',
               raw: originalLine,
-              decoded: `Harley J1850: VIN Bloco 3 recebido -> VIN: ${telemetry.vin || 'Incompleto'}`,
+              decoded: `Harley: VIN Bloco 3 recebido -> VIN: ${telemetry.vin || 'Incompleto'}`,
               tag: 'STATUS',
             };
             break;
@@ -653,7 +653,7 @@ export class J1850Decoder {
           timestamp: new Date().toLocaleTimeString(),
           type: 'rx',
           raw: originalLine,
-          decoded: `[SOURCE:J1850-ACTIVE][DPID:0x11] Battery=${telemetry.batteryVoltage.toFixed(1)}V | MAP=${telemetry.manifoldPressureKpa.toFixed(1)}kPa | TPS=${telemetry.throttlePosition.toFixed(1)}% | TTS-RPM=${ttsRpm} | DesiredIdle=${desiredIdleRpm} RPM`,
+          decoded: `[SOURCE:ECM-ACTIVE][DPID:0x11] Battery=${telemetry.batteryVoltage.toFixed(1)}V | MAP=${telemetry.manifoldPressureKpa.toFixed(1)}kPa | TPS=${telemetry.throttlePosition.toFixed(1)}% | TTS-RPM=${ttsRpm} | DesiredIdle=${desiredIdleRpm} RPM`,
           tag: 'STATUS',
         };
       }
@@ -677,7 +677,7 @@ export class J1850Decoder {
       const frameHex = cleanHex.substring(idx);
       const frameBytes = this.hexStringToBytes(frameHex);
 
-      // Validação formal do CRC J1850 VPW sobre o frame completo recebido
+      // Validação formal do CRC VPW Harley sobre o frame completo recebido
       // Header (3 bytes: 6C F1 NODE) + Service (1 byte: 59) = 4 bytes mínimos.
       // Se houver pelo menos 5 bytes e o frame passar na validação de CRC J1850, o último byte é o checksum confirmado.
       let hasValidCrc = false;
@@ -741,7 +741,7 @@ export class J1850Decoder {
         timestamp: new Date().toLocaleTimeString(),
         type: 'rx',
         raw: originalLine,
-        decoded: `Harley J1850 DTCs (${dtcClass} - Nó 0x${node}${hasValidCrc ? ' [CRC J1850 Válido]' : ''}): ${
+        decoded: `Harley DTCs (${dtcClass} - Nó 0x${node}${hasValidCrc ? ' [CRC Válido]' : ''}): ${
           parsedCodes.length > 0 ? parsedCodes.join(', ') : 'Nenhuma falha gravada [OK]'
         }`,
         tag: 'DTC',
@@ -761,7 +761,7 @@ export class J1850Decoder {
         timestamp: new Date().toLocaleTimeString(),
         type: 'rx',
         raw: originalLine,
-        decoded: `Harley J1850: Confirmação de Memória de DTC Limpa [Resposta 54 OK]`,
+        decoded: `Harley: Confirmação de Memória de DTC Limpa [Resposta 54 OK]`,
         tag: 'DTC',
       };
     }
@@ -914,7 +914,7 @@ export class J1850Decoder {
         timestamp: new Date().toLocaleTimeString(),
         type: 'rx',
         raw: originalLine,
-        decoded: `Pacote J1850 Bruto: ${cleanHex.toUpperCase()}`,
+        decoded: `Pacote Bruto: ${cleanHex.toUpperCase()}`,
         tag: 'OTHER',
       };
     }
@@ -1021,7 +1021,7 @@ export function parseMode03DTCs(bytesHex: string): string[] {
 }
 
 /**
- * Mapeamento estático de erros conhecidos J1850 da Harley-Davidson
+ * Mapeamento estático de erros conhecidos diagnóstico da Harley-Davidson
  */
 export const BANCO_ERROS_HARLEY: Record<string, { desc: string; category: string; tip: string }> = {
   P0107: {
@@ -1096,22 +1096,22 @@ export const BANCO_ERROS_HARLEY: Record<string, { desc: string; category: string
   },
   U1016: {
     desc: 'Perda de Comunicação com a ECU (ECM)',
-    category: 'Rede J1850',
+    category: 'Rede de Diagnóstico',
     tip: 'Falha de comunicação entre o velocímetro/módulos e o módulo principal de injeção.',
   },
   U1064: {
     desc: 'Perda de Comunicação com TSM/HFSM (Módulo de Alarme/Setas)',
-    category: 'Rede J1850',
-    tip: 'Chicote do módulo de piscas/alarme com mau contato no barramento J1850.',
+    category: 'Rede de Diagnóstico',
+    tip: 'Chicote do módulo de piscas/alarme com mau contato no barramento de diagnóstico.',
   },
   U1300: {
-    desc: 'Barramento J1850 com Tensão Baixa',
-    category: 'Rede J1850',
+    desc: 'Barramento de diagnóstico com Tensão Baixa',
+    category: 'Rede de Diagnóstico',
     tip: 'Curto-circuito do fio de dados serial (geralmente cinza/roxo) com o chassi/terra.',
   },
   U1301: {
-    desc: 'Barramento J1850 com Tensão Alta',
-    category: 'Rede J1850',
+    desc: 'Barramento de diagnóstico com Tensão Alta',
+    category: 'Rede de Diagnóstico',
     tip: 'Curto-circuito do fio de dados serial com o positivo da bateria (12V).',
   },
 };
