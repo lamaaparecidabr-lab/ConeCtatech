@@ -88,10 +88,10 @@ export class ELM327Connection {
   private batteryDpidTimer: any = null;
   private isBatteryDpidBusy: boolean = false;
 
-  // Incoming data listeners for request/expect flow (HarleyDroid chat mechanism)
+  // Incoming data listeners for request/expect flow (referência técnica chat mechanism)
   private responseListeners: Array<(line: string) => void> = [];
   private isDiagnosticBusy: boolean = false;
-  // Rev11: contador de execuções do Scanner para correlação dos testes DataMaster.
+  // Rev11: contador de execuções do Scanner para correlação dos testes catálogo técnico.
   private diagnosticScanSequence: number = 0;
 
   // Persistent telemetry state - no fabricated data in real mode
@@ -667,6 +667,10 @@ export class ELM327Connection {
         throw new Error(`ELM327 não aceitou o protocolo ${protoCmd}.`);
       }
       logHandshakeSuccess(protoCmd, 'OK');
+      if (protoCmd === 'ATSP2') {
+        this.currentTelemetryState.vehicleProtocol = 'J1850 VPW';
+        this.onTelemetryUpdate({ ...this.currentTelemetryState });
+      }
       await sleep(150);
 
       // 7. ATRV (Tensão da bateria) - validação explícita de tensão numérica real (\d+(?:\.\d+)?\s*V)
@@ -680,6 +684,10 @@ export class ELM327Connection {
       const voltStr = voltMatch ? `${voltMatch[1]}V` : rAtrv.reply.trim();
       logHandshakeSuccess('ATRV', voltStr);
       await sleep(150);
+
+      // Rev11.1: identifica a motocicleta automaticamente antes de iniciar o modo Live.
+      // Reutiliza exatamente os três blocos VIN já suportados pelo decoder; não executa o Scanner completo.
+      await this.requestVehicleVin();
 
       this.onPacketLog({
         id: Math.random().toString(36).substring(2, 9),
@@ -708,6 +716,47 @@ export class ELM327Connection {
     }
   }
 
+  /** Rev11.1: leitura única do VIN durante a conexão, antes do ATMA/polling. */
+  private async requestVehicleVin(): Promise<boolean> {
+    this.decoder.resetVehicleIdentity();
+    this.currentTelemetryState.vin = undefined;
+    this.onTelemetryUpdate({ ...this.currentTelemetryState });
+
+    this.onStatusChange('Identificando motocicleta...');
+    const header = await this.chat('ATSH 0C 10 F1', 'OK', 500);
+    if (!header.success) {
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(),
+        type: 'error', raw: 'VIN_HEADER_FAIL',
+        decoded: '[IDENTIFICAÇÃO] Cabeçalho ECM não confirmado; VIN automático não foi lido.', tag: 'STATUS',
+      });
+      return false;
+    }
+
+    const vinCommands = [
+      { cmd: '3C 0F', expect: '0CF1107C0F' },
+      { cmd: '3C 10', expect: '0CF1107C10' },
+      { cmd: '3C 11', expect: '0CF1107C11' },
+    ];
+    let ok = 0;
+    for (const item of vinCommands) {
+      const result = await this.chat(item.cmd, item.expect, 700);
+      if (result.success) ok++;
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    }
+
+    const complete = ok === vinCommands.length && Boolean(this.currentTelemetryState.vin);
+    this.onPacketLog({
+      id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(),
+      type: complete ? 'info' : 'error', raw: complete ? 'VIN_AUTO_OK' : 'VIN_AUTO_PARTIAL',
+      decoded: complete
+        ? '[IDENTIFICAÇÃO] VIN obtido automaticamente na conexão.'
+        : `[IDENTIFICAÇÃO] VIN automático incompleto (${ok}/${vinCommands.length} blocos).`,
+      tag: 'STATUS',
+    });
+    return complete;
+  }
+
   public startActivePolling() {
     this.stopActivePolling();
     // ATMA e activePolling são mutuamente exclusivos: se monitorMode estiver ativo, não iniciar polling
@@ -734,7 +783,7 @@ export class ELM327Connection {
 
   /**
    * Sends a break / abort signal (CR only) to stop ATMA streaming on ELM327.
-   * Matches HarleyDroid's empty-line abort semantics and avoids sending
+   * Matches referência técnica's empty-line abort semantics and avoids sending
    * an extra character that can leave/restart monitor mode on some ELM327 clones.
    */
   public async sendBreak(): Promise<boolean> {
@@ -820,7 +869,7 @@ export class ELM327Connection {
   }
 
   /**
-   * Mecanismo chat(send, expect, timeout) equivalente ao HarleyDroid
+   * Mecanismo chat(send, expect, timeout) equivalente ao referência técnica
    * Transmite comando e aguarda resposta esperada antes de prosseguir
    * Suporta tokens alternativos via separador '|' (ex: "ELM|STN|OBD") ou RegExp explícita (ex: /\d+(?:\.\d+)?\s*V/i)
    */
@@ -884,7 +933,7 @@ export class ELM327Connection {
 
   /**
    * Request Harley Diagnostics (VIN, ECU Part Number, CalID, SW Level, DTCs Atuais e Históricos)
-   * Baseado estritamente na rotina de envio do HarleyDroid
+   * Baseado estritamente na rotina de envio do referência técnica
    */
   public async requestHarleyDiagnostics(): Promise<void> {
     // Uma única transação ativa pode controlar o ELM por vez. Sem esta trava,
@@ -903,8 +952,8 @@ export class ELM327Connection {
         id: Math.random().toString(36).substring(2, 9),
         timestamp: new Date().toLocaleTimeString(),
         type: 'info',
-        raw: `DATAMASTER_SCAN_${scanNumber}_START`,
-        decoded: `[DATAMASTER-TEST][SCAN #${scanNumber}] Início da varredura experimental somente-leitura.`,
+        raw: `RESEARCH_SCAN_${scanNumber}_START`,
+        decoded: `[RESEARCH-TEST][SCAN #${scanNumber}] Início da varredura experimental somente-leitura.`,
         tag: 'STATUS',
       });
       const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
@@ -921,7 +970,7 @@ export class ELM327Connection {
           timestamp: new Date().toLocaleTimeString(),
           type: 'error',
           raw: 'BATTERY_DPID_BUSY_TIMEOUT',
-          decoded: `[DATAMASTER-TEST][SCAN #${scanNumber}] Scanner cancelado: transação periódica DPID 0x11 não liberou o ELM no tempo de segurança.`,
+          decoded: `[RESEARCH-TEST][SCAN #${scanNumber}] Scanner cancelado: transação periódica DPID 0x11 não liberou o ELM no tempo de segurança.`,
           tag: 'STATUS',
         });
         return;
@@ -1008,14 +1057,14 @@ export class ELM327Connection {
             tag: 'STATUS',
           });
         }
-        // HarleyDroid aguarda o timeout do comando antes de avançar para o próximo bloco 3C.
+        // referência técnica aguarda o timeout do comando antes de avançar para o próximo bloco 3C.
         await sleep(500);
       }
     }
 
     // 2. CONSULTA DE DTCs HARLEY (6C 10/40/60 F1 19 52 FF 00)
     // A classificação histórico/atual é feita pela resposta: 0x10 = histórico, 0x40 = atual.
-    // 0x60 é consultado pelo HarleyDroid, mas não é classificado como atual/histórico pelo parser original.
+    // 0x60 é consultado pelo referência técnica, mas não é classificado como atual/histórico pelo parser original.
     // Endereço 0x10 = DTC histórico
     this.onStatusChange('Configurando cabeçalho DTC histórico (ATSH 6C 10 F1)...');
     const hDtc10 = await this.chat('ATSH 6C 10 F1', 'OK', 500);
@@ -1052,7 +1101,7 @@ export class ELM327Connection {
         });
       }
     }
-    // HarleyDroid aguarda GET_DTC_TIMEOUT (2000 ms) antes da próxima consulta.
+    // referência técnica aguarda GET_DTC_TIMEOUT (2000 ms) antes da próxima consulta.
     await sleep(2000);
 
     // Endereço 0x40 = DTC atual
@@ -1093,7 +1142,7 @@ export class ELM327Connection {
     }
     await sleep(2000);
 
-    // Endereço 0x60 = terceira consulta HarleyDroid; não classificada como atual/histórica no parser original
+    // Endereço 0x60 = terceira consulta referência técnica; não classificada como atual/histórica no parser original
     this.onStatusChange('Configurando terceiro cabeçalho DTC (ATSH 6C 60 F1)...');
     const hDtc60 = await this.chat('ATSH 6C 60 F1', 'OK', 500);
     if (!hDtc60.success) {
@@ -1131,7 +1180,7 @@ export class ELM327Connection {
     }
     await sleep(2000);
 
-    // 3. VARREDURA EXPERIMENTAL TTS/HDC2 DATAMASTER J1850 (somente leitura)
+    // 3. VARREDURA EXPERIMENTAL dados ativos RESEARCH J1850 (somente leitura)
     // Rev11-Catalog: DPIDs 0x11..0x21 catalogados no banco HD-DatastreamConfig.
     // IMPORTANTE: referências CAN 0x200..0x210 ficam deliberadamente FORA desta rotina.
     // Elas pertencem à futura implementação CAN e não devem ser misturadas ao J1850 atual.
@@ -1141,24 +1190,24 @@ export class ELM327Connection {
       { id: '11', label: 'Generic J1850: RPM / Desired Idle / Battery / MAP / TPS' },
       { id: '12', label: 'Generic J1850: Engine Temp / IAT / ET-IAT-MAP-TPS Sensor Volts' },
       { id: '13', label: 'Generic J1850: Spark F-R / Knock Fast F-R / IAC / Engine Flag' },
-      { id: '14', label: 'DataMaster mapped: Injectors / O2 / Fuel Trim / Vehicle Speed' },
+      { id: '14', label: 'catálogo técnico mapped: Injectors / O2 / Fuel Trim / Vehicle Speed' },
       { id: '15', label: 'Generic J1850: Desired AFR / AF Feedback F-R / MAP' },
       { id: '16', label: 'Generic J1850: Accel Enrichment / Injector BPW Front-Rear' },
       { id: '17', label: 'Generic J1850: Decel Enleanment / Spark Advance Front-Rear hi-res' },
       { id: '18', label: 'Generic J1850: VE F-R / VE New F-R / Warm Up AFR / IAC' },
       { id: '19', label: 'Generic J1850: Air-Charge-Engine-Head Temp / TPS / TPS Volts' },
-      { id: '1A', label: 'DataMaster mapped: O2 Raw Front-Rear / Knock Retard Front-Rear' },
+      { id: '1A', label: 'catálogo técnico mapped: O2 Raw Front-Rear / Knock Retard Front-Rear' },
       { id: '1B', label: 'Generic J1850: RPM / Run Time / Barometer / Sync / Vehicle Speed' },
-      { id: '1C', label: 'DataMaster mapped: Battery / Ion-Q Front-Rear / Factory Flags' },
+      { id: '1C', label: 'catálogo técnico mapped: Battery / Ion-Q Front-Rear / Factory Flags' },
       { id: '1D', label: 'Generic O2 J1850: O2 Front-Rear / Integrators / Long Term' },
-      { id: '1E', label: 'DataMaster mapped: Crank Time / Sidestand / Gear Position' },
-      { id: '1F', label: 'DataMaster mapped: Cruise Target / Fuel Pump / Flags / Throttle / TGS' },
-      { id: '20', label: 'DataMaster mapped: Post-Cat O2 Front-Rear / DBW sensor voltages' },
-      { id: '21', label: 'DataMaster mapped: Cruise-control disengage data' },
+      { id: '1E', label: 'catálogo técnico mapped: Crank Time / Sidestand / Gear Position' },
+      { id: '1F', label: 'catálogo técnico mapped: Cruise Target / Fuel Pump / Flags / Throttle / TGS' },
+      { id: '20', label: 'catálogo técnico mapped: Post-Cat O2 Front-Rear / DBW sensor voltages' },
+      { id: '21', label: 'catálogo técnico mapped: Cruise-control disengage data' },
     ];
     const experimentalResults: string[] = [];
 
-    this.onStatusChange(`Scanner #${scanNumber}: iniciando varredura experimental DataMaster...`);
+    this.onStatusChange(`Scanner #${scanNumber}: iniciando varredura experimental catálogo técnico...`);
     const hActive = await this.chat('ATSH 6C 10 F1', 'OK', 700);
     if (hActive.success) {
       const allowLong = await this.chat('ATAL', 'OK', 700);
@@ -1172,7 +1221,7 @@ export class ELM327Connection {
             timestamp: new Date().toLocaleTimeString(),
             type: 'info',
             raw: request,
-            decoded: `[DATAMASTER-TEST][SCAN #${scanNumber}][DPID:0x${item.id}][REQUEST] ${item.label}`,
+            decoded: `[RESEARCH-TEST][SCAN #${scanNumber}][DPID:0x${item.id}][REQUEST] ${item.label}`,
             tag: 'STATUS',
           });
 
@@ -1189,7 +1238,7 @@ export class ELM327Connection {
               timestamp: new Date().toLocaleTimeString(),
               type: 'rx',
               raw: res.reply.trim() || request,
-              decoded: `[DATAMASTER-TEST][SCAN #${scanNumber}][DPID:0x${item.id}][POSITIVE][${elapsed}ms] Frame bruto preservado; resposta encaminhada ao decoder.`,
+              decoded: `[RESEARCH-TEST][SCAN #${scanNumber}][DPID:0x${item.id}][POSITIVE][${elapsed}ms] Frame bruto preservado; resposta encaminhada ao decoder.`,
               tag: 'STATUS',
             });
           } else {
@@ -1199,7 +1248,7 @@ export class ELM327Connection {
               timestamp: new Date().toLocaleTimeString(),
               type: negative || elmRejected ? 'error' : 'info',
               raw: res.reply.trim() || `${request} -> SEM RESPOSTA`,
-              decoded: `[DATAMASTER-TEST][SCAN #${scanNumber}][DPID:0x${item.id}][${negative ? 'NEGATIVE' : elmRejected ? 'ELM-REJECT' : 'TIMEOUT'}][${elapsed}ms] Resposta integral preservada; nenhum valor inferido.`,
+              decoded: `[RESEARCH-TEST][SCAN #${scanNumber}][DPID:0x${item.id}][${negative ? 'NEGATIVE' : elmRejected ? 'ELM-REJECT' : 'TIMEOUT'}][${elapsed}ms] Resposta integral preservada; nenhum valor inferido.`,
               tag: 'STATUS',
             });
           }
@@ -1213,7 +1262,7 @@ export class ELM327Connection {
           timestamp: new Date().toLocaleTimeString(),
           type: normalLength.success ? 'info' : 'error',
           raw: normalLength.reply.trim() || 'ATNL -> SEM RESPOSTA',
-          decoded: `[DATAMASTER-TEST][SCAN #${scanNumber}] ATNL ${normalLength.success ? 'restaurado' : 'FALHOU'}.`,
+          decoded: `[RESEARCH-TEST][SCAN #${scanNumber}] ATNL ${normalLength.success ? 'restaurado' : 'FALHOU'}.`,
           tag: 'AT',
         });
       } else {
@@ -1227,8 +1276,8 @@ export class ELM327Connection {
       id: Math.random().toString(36).substring(2, 9),
       timestamp: new Date().toLocaleTimeString(),
       type: 'info',
-      raw: `DATAMASTER_SCAN_${scanNumber}_END`,
-      decoded: `[DATAMASTER-TEST][SCAN #${scanNumber}][SUMMARY] ${experimentalResults.join(' | ') || 'sem consultas'}`,
+      raw: `RESEARCH_SCAN_${scanNumber}_END`,
+      decoded: `[RESEARCH-TEST][SCAN #${scanNumber}][SUMMARY] ${experimentalResults.join(' | ') || 'sem consultas'}`,
       tag: 'STATUS',
     });
     await sleep(300);
@@ -1271,7 +1320,7 @@ export class ELM327Connection {
   }
 
   /**
-   * Procedimento de limpeza de falhas Harley (HarleyDroid clearDTC)
+   * Procedimento de limpeza de falhas Harley (referência técnica clearDTC)
    * Envia sequencialmente: 6C 10 F1 14, 6C 40 F1 14, 6C 60 F1 14
    */
   public async clearDTC(): Promise<boolean> {
@@ -1591,7 +1640,8 @@ export class ELM327Connection {
       engineHoursTotal: this.simEngineHours,
       engineMinutesTotal: this.simEngineMinutes,
       engineIgnitionCycles: this.simEngineStarts,
-      vin: '1HD1BX1194K012345',
+      vin: '1HD1KB41X7Y123456',
+      vehicleProtocol: 'J1850 VPW',
       ecuPartNumber: '32124-04B',
       ecuCalId: '32852-04A',
       ecuSoftwareLevel: 8,
@@ -1671,7 +1721,7 @@ export class ELM327Connection {
         else if (this.simGear === 6) gearByteHex = '3F';
         const gearFrame = `A8 3B 10 03 ${gearByteHex}`;
 
-        // Frame Neutro / Embreagem conforme parser HarleyDroid: 0x20 = fora do neutro, 0xA0 = neutro
+        // Frame Neutro / Embreagem conforme parser referência técnica: 0x20 = fora do neutro, 0xA0 = neutro
         const neutralByte = this.simGear === 'N' ? 0xA0 : 0x20;
         const neutralFrame = `48 3B 40 ${neutralByte.toString(16).padStart(2, '0').toUpperCase()}`;
 
@@ -1722,7 +1772,7 @@ export class ELM327Connection {
   }
 
   /**
-   * Simula comandos Harley de acordo com as consultas do HarleyDroid
+   * Simula comandos Harley de acordo com as consultas do referência técnica
    */
   private simulateCommandResponse(cmd: string) {
     const u = cmd.toUpperCase().trim();
@@ -1756,14 +1806,14 @@ export class ELM327Connection {
       // SW Level = 8
       resp = '0C F1 10 7C 0B 08';
     } else if (u === '3C 0F' || u === '3C0F') {
-      // VIN Bloco 1 (ASCII: '1HD1BX') -> 31 48 44 31 42 58
-      resp = '0C F1 10 7C 0F 31 48 44 31 42 58';
+      // VIN Bloco 1 (ASCII: '1HD1KB') -> 31 48 44 31 4B 42
+      resp = '0C F1 10 7C 0F 31 48 44 31 4B 42';
     } else if (u === '3C 10' || u === '3C10') {
-      // VIN Bloco 2 (ASCII: '1194K0') -> 31 31 39 34 4B 30
-      resp = '0C F1 10 7C 10 31 31 39 34 4B 30';
+      // VIN Bloco 2 (ASCII: '41X7Y1') -> 34 31 58 37 59 31
+      resp = '0C F1 10 7C 10 34 31 58 37 59 31';
     } else if (u === '3C 11' || u === '3C11') {
-      // VIN Bloco 3 (ASCII: '12345') -> 31 32 33 34 35
-      resp = '0C F1 10 7C 11 31 32 33 34 35';
+      // VIN Bloco 3 (ASCII: '23456') -> 32 33 34 35 36
+      resp = '0C F1 10 7C 11 32 33 34 35 36';
     }
     // Harley DTCs Read (19 52 FF 00)
     else if (u === '19 52 FF 00' || u === '1952FF00') {
