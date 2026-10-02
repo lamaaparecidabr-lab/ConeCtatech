@@ -685,10 +685,6 @@ export class ELM327Connection {
       logHandshakeSuccess('ATRV', voltStr);
       await sleep(150);
 
-      // Rev11.1: identifica a motocicleta automaticamente antes de iniciar o modo Live.
-      // Reutiliza exatamente os três blocos VIN já suportados pelo decoder; não executa o Scanner completo.
-      await this.requestVehicleVin();
-
       this.onPacketLog({
         id: Math.random().toString(36).substring(2, 9),
         timestamp: new Date().toLocaleTimeString(),
