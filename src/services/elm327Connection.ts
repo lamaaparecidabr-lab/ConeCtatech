@@ -91,6 +91,8 @@ export class ELM327Connection {
   // Incoming data listeners for request/expect flow (HarleyDroid chat mechanism)
   private responseListeners: Array<(line: string) => void> = [];
   private isDiagnosticBusy: boolean = false;
+  // Rev11: contador de execuções do Scanner para correlação dos testes DataMaster.
+  private diagnosticScanSequence: number = 0;
 
   // Persistent telemetry state - no fabricated data in real mode
   private currentTelemetryState: TelemetryData = {
@@ -694,6 +696,8 @@ export class ELM327Connection {
         this.onStatusChange('Ativando Monitor de diagnóstico contínuo (ATMA)...');
         await this.sendCommand('ATMA');
         this.onStatusChange('Painel Harley-Davidson Ativo (ATMA)!');
+        // Rev11: bateria ECM dinâmica inicia automaticamente após a conexão; não depende do Scanner.
+        this.startBatteryDpidSampling();
       } else {
         this.onStatusChange('Conectado ao ELM327! Modo Harley Ativo...');
         this.startActivePolling();
@@ -891,9 +895,37 @@ export class ELM327Connection {
       return;
     }
     this.isDiagnosticBusy = true;
+    this.stopBatteryDpidSampling();
+    const scanNumber = ++this.diagnosticScanSequence;
 
     try {
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'info',
+        raw: `DATAMASTER_SCAN_${scanNumber}_START`,
+        decoded: `[DATAMASTER-TEST][SCAN #${scanNumber}] Início da varredura experimental somente-leitura.`,
+        tag: 'STATUS',
+      });
       const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+      // Rev11: se o clique no Scanner coincidir com uma amostra de bateria,
+      // aguarda a transação curta terminar em vez de disputar o ELM327.
+      const batteryWaitDeadline = Date.now() + 3500;
+      while (this.isBatteryDpidBusy && Date.now() < batteryWaitDeadline) {
+        await sleep(50);
+      }
+      if (this.isBatteryDpidBusy) {
+        this.onPacketLog({
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'error',
+          raw: 'BATTERY_DPID_BUSY_TIMEOUT',
+          decoded: `[DATAMASTER-TEST][SCAN #${scanNumber}] Scanner cancelado: transação periódica DPID 0x11 não liberou o ELM no tempo de segurança.`,
+          tag: 'STATUS',
+        });
+        return;
+      }
 
       this.onStatusChange('Interrompendo monitoramento contínuo (ATMA)...');
     this.stopActivePolling();
@@ -1099,106 +1131,107 @@ export class ELM327Connection {
     }
     await sleep(2000);
 
-    // 3. LEITURA ATIVA TTS/HDC2 - DPID 0x11 (somente leitura)
-    // Evidência TTS/HDC2 decompilada: Mode 0x2A usa rate 0x01 e exatamente 6 slots de DPID.
-    // Slots não usados são preenchidos com 0xFF. Para apenas DPID 0x11: 2A 01 11 FF FF FF FF FF.
-    // DPID 0x11 retorna: RPM(2), Desired Idle(1), Battery(1), MAP(1), TPS(1).
-    // Executada uma única vez durante a varredura; não altera o polling/ATMA contínuo.
+    // 3. VARREDURA EXPERIMENTAL TTS/HDC2 DATAMASTER J1850 (somente leitura)
+    // Rev11-Catalog: DPIDs 0x11..0x21 catalogados no banco HD-DatastreamConfig.
+    // IMPORTANTE: referências CAN 0x200..0x210 ficam deliberadamente FORA desta rotina.
+    // Elas pertencem à futura implementação CAN e não devem ser misturadas ao J1850 atual.
+    // IDs internos $20xx também NÃO são convertidos em DPID por suposição.
     let activeDpid11Success = 0;
-    this.onStatusChange('Lendo dados ativos ECM (TTS DPID 0x11: bateria/MAP/TPS)...');
-    const hActive11 = await this.chat('ATSH 6C 10 F1', 'OK', 500);
-    if (hActive11.success) {
-      // O ELM327 limita normalmente mensagens OBD a 7 data bytes (ATNL).
-      // O frame TTS/HDC2 para um único DPID possui 8 data bytes, então habilitamos
-      // ATAL somente ao redor desta transação e restauramos ATNL em seguida.
-      const allowLong = await this.chat('ATAL', 'OK', 500);
-      if (!allowLong.success) {
-        this.onPacketLog({
-          id: Math.random().toString(36).substring(2, 9),
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'error',
-          raw: allowLong.reply.trim() || 'ATAL -> SEM RESPOSTA',
-          decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11] ELM327 não aceitou ATAL; requisição longa não foi enviada à ECM.',
-          tag: 'AT',
-        });
-      } else {
-        this.onPacketLog({
-          id: Math.random().toString(36).substring(2, 9),
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'info',
-          raw: 'ATAL OK',
-          decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11] ELM327 habilitado temporariamente para mensagem longa de 8 data bytes.',
-          tag: 'AT',
-        });
+    const experimentalDpids = [
+      { id: '11', label: 'Generic J1850: RPM / Desired Idle / Battery / MAP / TPS' },
+      { id: '12', label: 'Generic J1850: Engine Temp / IAT / ET-IAT-MAP-TPS Sensor Volts' },
+      { id: '13', label: 'Generic J1850: Spark F-R / Knock Fast F-R / IAC / Engine Flag' },
+      { id: '14', label: 'DataMaster mapped: Injectors / O2 / Fuel Trim / Vehicle Speed' },
+      { id: '15', label: 'Generic J1850: Desired AFR / AF Feedback F-R / MAP' },
+      { id: '16', label: 'Generic J1850: Accel Enrichment / Injector BPW Front-Rear' },
+      { id: '17', label: 'Generic J1850: Decel Enleanment / Spark Advance Front-Rear hi-res' },
+      { id: '18', label: 'Generic J1850: VE F-R / VE New F-R / Warm Up AFR / IAC' },
+      { id: '19', label: 'Generic J1850: Air-Charge-Engine-Head Temp / TPS / TPS Volts' },
+      { id: '1A', label: 'DataMaster mapped: O2 Raw Front-Rear / Knock Retard Front-Rear' },
+      { id: '1B', label: 'Generic J1850: RPM / Run Time / Barometer / Sync / Vehicle Speed' },
+      { id: '1C', label: 'DataMaster mapped: Battery / Ion-Q Front-Rear / Factory Flags' },
+      { id: '1D', label: 'Generic O2 J1850: O2 Front-Rear / Integrators / Long Term' },
+      { id: '1E', label: 'DataMaster mapped: Crank Time / Sidestand / Gear Position' },
+      { id: '1F', label: 'DataMaster mapped: Cruise Target / Fuel Pump / Flags / Throttle / TGS' },
+      { id: '20', label: 'DataMaster mapped: Post-Cat O2 Front-Rear / DBW sensor voltages' },
+      { id: '21', label: 'DataMaster mapped: Cruise-control disengage data' },
+    ];
+    const experimentalResults: string[] = [];
 
-        const resActive11 = await this.chat('2A 01 11 FF FF FF FF FF', '6CF1106A11', 1500);
-        if (resActive11.success) {
-          activeDpid11Success = 1;
-          this.onPacketLog({
-            id: Math.random().toString(36).substring(2, 9),
-            timestamp: new Date().toLocaleTimeString(),
-            type: 'rx',
-            raw: resActive11.reply.trim() || '2A 01 11 FF FF FF FF FF',
-            decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11] Resposta ECM recebida e encaminhada ao decoder.',
-            tag: 'STATUS',
-          });
-        } else {
-          const normalizedActive11Reply = resActive11.reply.toUpperCase().replace(/[\s:]/g, '');
-          const negativeResponseMatch = normalizedActive11Reply.match(/6CF1107F2A(?:[0-9A-F]{2})*?([0-9A-F]{2})(?:[0-9A-F]{2})?$/);
-          const isNegativeResponse = normalizedActive11Reply.includes('6CF1107F2A');
-          const responseCode = negativeResponseMatch?.[1];
-          const elmRejected = normalizedActive11Reply.includes('?');
-
-          this.onPacketLog({
-            id: Math.random().toString(36).substring(2, 9),
-            timestamp: new Date().toLocaleTimeString(),
-            type: isNegativeResponse || elmRejected ? 'error' : 'info',
-            raw: resActive11.reply.trim() || '2A 01 11 FF FF FF FF FF -> SEM RESPOSTA',
-            decoded: isNegativeResponse
-              ? `[SOURCE:ECM-ACTIVE][DPID:0x11] ECM respondeu negativamente ao Mode 0x2A${responseCode ? ` (código 0x${responseCode})` : ''}. Resposta preservada para diagnóstico; nenhum valor foi fabricado ou substituído.`
-              : elmRejected
-                ? '[SOURCE:ECM-ACTIVE][DPID:0x11] ELM327 devolveu ? mesmo com ATAL ativo; frame longo não foi aceito pelo adaptador.'
-                : '[SOURCE:ECM-ACTIVE][DPID:0x11] Nenhuma resposta positiva/negativa da ECM foi recebida. Nenhum valor foi fabricado ou substituído.',
-            tag: 'STATUS',
-          });
-        }
-
-        // Evita enviar ATNL antes de o ELM concluir a resposta 6A11.
-        const dpidPromptReady = await this.waitForPrompt(1000);
-        if (!dpidPromptReady) {
+    this.onStatusChange(`Scanner #${scanNumber}: iniciando varredura experimental DataMaster...`);
+    const hActive = await this.chat('ATSH 6C 10 F1', 'OK', 700);
+    if (hActive.success) {
+      const allowLong = await this.chat('ATAL', 'OK', 700);
+      if (allowLong.success) {
+        for (const item of experimentalDpids) {
+          const request = `2A 01 ${item.id} FF FF FF FF FF`;
+          const expect = `6CF1106A${item.id}`;
+          const started = Date.now();
           this.onPacketLog({
             id: Math.random().toString(36).substring(2, 9),
             timestamp: new Date().toLocaleTimeString(),
             type: 'info',
-            raw: 'DPID11_PROMPT_TIMEOUT',
-            decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11] Prompt final do ELM não observado antes da restauração.',
-            tag: 'AT',
+            raw: request,
+            decoded: `[DATAMASTER-TEST][SCAN #${scanNumber}][DPID:0x${item.id}][REQUEST] ${item.label}`,
+            tag: 'STATUS',
           });
+
+          const res = await this.chat(request, expect, 1800);
+          const elapsed = Date.now() - started;
+          const normalized = res.reply.toUpperCase().replace(/[\s:]/g, '');
+          const negative = normalized.includes('6CF1107F2A');
+          const elmRejected = normalized.includes('?');
+          if (res.success) {
+            if (item.id === '11') activeDpid11Success = 1;
+            experimentalResults.push(`0x${item.id}:OK`);
+            this.onPacketLog({
+              id: Math.random().toString(36).substring(2, 9),
+              timestamp: new Date().toLocaleTimeString(),
+              type: 'rx',
+              raw: res.reply.trim() || request,
+              decoded: `[DATAMASTER-TEST][SCAN #${scanNumber}][DPID:0x${item.id}][POSITIVE][${elapsed}ms] Frame bruto preservado; resposta encaminhada ao decoder.`,
+              tag: 'STATUS',
+            });
+          } else {
+            experimentalResults.push(`0x${item.id}:${negative ? 'NEG' : elmRejected ? 'ELM?' : 'TIMEOUT'}`);
+            this.onPacketLog({
+              id: Math.random().toString(36).substring(2, 9),
+              timestamp: new Date().toLocaleTimeString(),
+              type: negative || elmRejected ? 'error' : 'info',
+              raw: res.reply.trim() || `${request} -> SEM RESPOSTA`,
+              decoded: `[DATAMASTER-TEST][SCAN #${scanNumber}][DPID:0x${item.id}][${negative ? 'NEGATIVE' : elmRejected ? 'ELM-REJECT' : 'TIMEOUT'}][${elapsed}ms] Resposta integral preservada; nenhum valor inferido.`,
+              tag: 'STATUS',
+            });
+          }
+          await this.waitForPrompt(1100);
+          await sleep(150);
         }
 
-        const normalLength = await this.chat('ATNL', 'OK', 700);
+        const normalLength = await this.chat('ATNL', 'OK', 800);
         this.onPacketLog({
           id: Math.random().toString(36).substring(2, 9),
           timestamp: new Date().toLocaleTimeString(),
           type: normalLength.success ? 'info' : 'error',
           raw: normalLength.reply.trim() || 'ATNL -> SEM RESPOSTA',
-          decoded: normalLength.success
-            ? '[SOURCE:ECM-ACTIVE][DPID:0x11] ELM327 restaurado para comprimento normal (ATNL).'
-            : '[SOURCE:ECM-ACTIVE][DPID:0x11] Falha ao restaurar ATNL; estado do adaptador deve ser revisto antes da próxima transação.',
+          decoded: `[DATAMASTER-TEST][SCAN #${scanNumber}] ATNL ${normalLength.success ? 'restaurado' : 'FALHOU'}.`,
           tag: 'AT',
         });
+      } else {
+        experimentalResults.push('ATAL:FAIL');
       }
     } else {
-      this.onPacketLog({
-        id: Math.random().toString(36).substring(2, 9),
-        timestamp: new Date().toLocaleTimeString(),
-        type: 'error',
-        raw: 'ATSH 6C 10 F1 FAIL',
-        decoded: '[SOURCE:ECM-ACTIVE][DPID:0x11] Falha ao configurar cabeçalho; requisição ativa não enviada.',
-        tag: 'AT',
-      });
+      experimentalResults.push('HEADER:FAIL');
     }
-    await sleep(500);
+
+    this.onPacketLog({
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toLocaleTimeString(),
+      type: 'info',
+      raw: `DATAMASTER_SCAN_${scanNumber}_END`,
+      decoded: `[DATAMASTER-TEST][SCAN #${scanNumber}][SUMMARY] ${experimentalResults.join(' | ') || 'sem consultas'}`,
+      tag: 'STATUS',
+    });
+    await sleep(300);
 
     // 4. Resumo Final da Varredura
     const totalSuccess = idSuccessCount + dtcSuccessCount;
@@ -1230,9 +1263,8 @@ export class ELM327Connection {
 
       // Restaura monitoramento de painel em tempo real
       await this.resumeLiveDashboard();
-      if (activeDpid11Success) {
-        this.startBatteryDpidSampling();
-      }
+      // Rev11: o sampler é independente do resultado do Scanner.
+      this.startBatteryDpidSampling();
     } finally {
       this.isDiagnosticBusy = false;
     }
@@ -1299,12 +1331,12 @@ export class ELM327Connection {
     return confirmedCount > 0;
   }
 
-  /** Rev10: inicia leitura periódica do DPID 0x11 somente após validação positiva no Scanner. */
+  /** Rev11: leitura periódica do DPID 0x11 automática e independente do Scanner. */
   private startBatteryDpidSampling(): void {
     this.stopBatteryDpidSampling();
     if (this.connectionType === 'disconnected' || this.connectionType === 'simulator') return;
     if (this.activeConfig?.monitorMode === false) return;
-    this.batteryDpidTimer = setInterval(() => { void this.sampleBatteryDpid11(); }, 5000);
+    this.batteryDpidTimer = setInterval(() => { void this.sampleBatteryDpid11(); }, 2500);
   }
 
   private stopBatteryDpidSampling(): void {
@@ -1376,6 +1408,7 @@ export class ELM327Connection {
     if (this.activeConfig?.monitorMode !== false) {
       await this.sendCommand('ATMA');
       this.onStatusChange('Painel Harley-Davidson Ativo (ATMA)!');
+      this.startBatteryDpidSampling();
     } else {
       this.startActivePolling();
       this.onStatusChange('Painel Harley-Davidson Ativo (Polling)!');

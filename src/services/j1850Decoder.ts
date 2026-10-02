@@ -626,7 +626,7 @@ export class J1850Decoder {
 
     // =========================================================================
     // 10. HARLEY ACTIVE DATA - TTS/HDC2 DPID 0x11
-    // Request: 6C 10 F1 2A 01 11 FF FF FF FF FF
+    // Request: 6C 10 F1 2A 01 11
     // Response: 6C F1 10 6A 11 [RPM_H] [RPM_L] [DesiredIdle] [Battery] [MAP] [TPS] [CRC]
     // TTS HD-DatastreamConfig: DPID 0x11 -> $2001,$2002,$2003,$2004,$2005.
     // =========================================================================
@@ -657,6 +657,79 @@ export class J1850Decoder {
           tag: 'STATUS',
         };
       }
+    }
+
+
+    // =========================================================================
+    // 10B. HARLEY ACTIVE DATA - TTS/HDC2 DPID 0x12 (Rev11 experimental/log-only)
+    // DataMaster mapping: Engine Temp raw-16 C; IAT raw-16 C; four sensor voltages raw*0.01953125 V.
+    // Deliberadamente NÃO substitui a temperatura passiva do painel nesta revisão.
+    // =========================================================================
+    else if (cleanHex.startsWith('6cf1106a12')) {
+      const frameBytes = bytes;
+      if (frameBytes.length >= 11) {
+        const engineTempCActive = frameBytes[5] - 16;
+        const intakeTempCActive = frameBytes[6] - 16;
+        const etVolts = frameBytes[7] * 0.01953125;
+        const iatVolts = frameBytes[8] * 0.01953125;
+        const mapVolts = frameBytes[9] * 0.01953125;
+        const tpsVolts = frameBytes[10] * 0.01953125;
+        packetLog = {
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'rx',
+          raw: originalLine,
+          decoded: `[DATAMASTER-TEST][DPID:0x12] EngineTemp=${engineTempCActive}°C | IAT=${intakeTempCActive}°C | ET=${etVolts.toFixed(3)}V | IAT=${iatVolts.toFixed(3)}V | MAP=${mapVolts.toFixed(3)}V | TPS=${tpsVolts.toFixed(3)}V | RAW=${frameBytes.slice(5, 11).map(v => v.toString(16).padStart(2, '0')).join(' ').toUpperCase()}`,
+          tag: 'STATUS',
+        };
+      }
+    }
+
+    // =========================================================================
+    // 10C. DATAMASTER J1850 - DPIDs experimentais catalogados (log-only)
+    // Nenhum destes campos altera o painel nesta revisão. O objetivo é validar
+    // na moto o catálogo extraído do DataMaster antes de promover qualquer fonte.
+    // =========================================================================
+    else if (cleanHex.startsWith('6cf1106a13') && bytes.length >= 11) {
+      const d = bytes.slice(5, 11);
+      packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
+        decoded: `[DATAMASTER-TEST][DPID:0x13] SparkF=${(d[0]*0.5).toFixed(1)}° | SparkR=${(d[1]*0.5).toFixed(1)}° | KnockFastF=${(d[2]*0.5).toFixed(1)}° | KnockFastR=${(d[3]*0.5).toFixed(1)}° | IAC=${d[4]} | EngineFlag=0x${d[5].toString(16).padStart(2,'0').toUpperCase()} | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+    }
+    else if (cleanHex.startsWith('6cf1106a16') && bytes.length >= 11) {
+      const d = bytes.slice(5, 11);
+      const u16=(i:number)=>((d[i]<<8)|d[i+1]);
+      packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
+        decoded: `[DATAMASTER-TEST][DPID:0x16] AccelEnrich=${(u16(0)*0.004).toFixed(3)}ms | InjectorBPW-F=${(u16(2)*0.004).toFixed(3)}ms | InjectorBPW-R=${(u16(4)*0.004).toFixed(3)}ms | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+    }
+    else if (cleanHex.startsWith('6cf1106a17') && bytes.length >= 11) {
+      const d = bytes.slice(5, 11);
+      const u16=(i:number)=>((d[i]<<8)|d[i+1]);
+      packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
+        decoded: `[DATAMASTER-TEST][DPID:0x17] DecelEnlean=${(u16(0)*0.004).toFixed(3)}ms | SparkF-hi=${(u16(2)*0.25).toFixed(2)}° | SparkR-hi=${(u16(4)*0.25).toFixed(2)}° | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+    }
+    else if (cleanHex.startsWith('6cf1106a18') && bytes.length >= 11) {
+      const d = bytes.slice(5, 11);
+      packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
+        decoded: `[DATAMASTER-TEST][DPID:0x18] VE-F=${d[0]} | VE-R=${d[1]} | VE-New-F=${d[2]} | VE-New-R=${d[3]} | WarmUpAFR-raw=${d[4]} | IAC=${d[5]} | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+    }
+    else if (cleanHex.startsWith('6cf1106a1a') && bytes.length >= 11) {
+      const d = bytes.slice(5, 11);
+      const u16=(i:number)=>((d[i]<<8)|d[i+1]);
+      packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
+        decoded: `[DATAMASTER-TEST][DPID:0x1A] O2RawF=${(u16(0)*0.0763126).toFixed(3)}mV | O2RawR=${(u16(2)*0.0763126).toFixed(3)}mV | KnockF=${(d[4]*0.25).toFixed(2)}° | KnockR=${(d[5]*0.25).toFixed(2)}° | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+    }
+    else if (cleanHex.startsWith('6cf1106a1d') && bytes.length >= 11) {
+      const d = bytes.slice(5, 11);
+      packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
+        decoded: `[DATAMASTER-TEST][DPID:0x1D][GENERIC-O2] O2F=${d[0]*20}mV | O2R=${d[1]*20}mV | IntegratorF=${(d[2]*0.78125).toFixed(2)}% | IntegratorR=${(d[3]*0.78125).toFixed(2)}% | LongTermF=${(d[4]*0.78125).toFixed(2)}% | LongTermR=${(d[5]*0.78125).toFixed(2)}% | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+    }
+    // Para os demais DPIDs J1850 catalogados, preservar os seis bytes integralmente
+    // até validarmos na moto a variante/configuração exata e suas fórmulas.
+    else if (/^6cf1106a(14|15|19|1b|1c|1e|1f|20|21)/.test(cleanHex) && bytes.length >= 11) {
+      const dpid = cleanHex.substring(8,10).toUpperCase();
+      const d = bytes.slice(5, 11);
+      packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
+        decoded: `[DATAMASTER-TEST][DPID:0x${dpid}][MAPPED-RAW] ${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
     }
 
     // =========================================================================
