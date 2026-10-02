@@ -2,7 +2,7 @@ import { TelemetryData, PacketLog } from '../types';
 
 /**
  * Cálculo e validação do CRC VPW Harley (polinômio 0x1D, valor inicial 0xFF)
- * Baseado fielmente na implementação do HarleyDroid (J1850.java)
+ * Baseado fielmente na implementação do referência técnica (J1850.java)
  */
 export function computeJ1850Crc(bytes: number[]): number {
   let crc = 0xff;
@@ -39,7 +39,7 @@ export function validateJ1850Crc(bytesWithCrc: number[]): boolean {
 export class J1850Decoder {
   private buffer: string = '';
 
-  // Buffers persistentes para montagem progressiva dos blocos Harley (HarleyDroid)
+  // Buffers persistentes para montagem progressiva dos blocos Harley (referência técnica)
   private vinChars: string[] = Array(17).fill('-');
   private ecmPnChars: string[] = Array(12).fill('-');
   private ecmCalIdChars: string[] = Array(12).fill('-');
@@ -48,13 +48,18 @@ export class J1850Decoder {
   private activeDtcSet: Set<string> = new Set();
   private historicDtcSet: Set<string> = new Set();
 
-  // Rastreamento de Odômetro (HarleyDroid odoaccum / odolast)
-  // Referência HarleyDroid: contador incremental de 16 bits (current trip odometer), 1 tick = 0,4m
+  // Rastreamento de Odômetro (referência técnica odoaccum / odolast)
+  // Referência referência técnica: contador incremental de 16 bits (current trip odometer), 1 tick = 0,4m
   private odolast: number = -1;
   private odoaccum: number = 0;
 
   // Timestamp da última leitura de marcha real (para não ser sobrescrita pelo fallback de cálculo)
   private lastRealGearTimestamp: number = 0;
+
+  /** Reseta somente o buffer usado para montar o VIN. */
+  public resetVehicleIdentity(): void {
+    this.vinChars = Array(17).fill('-');
+  }
 
   /**
    * Reseta apenas o estado de diagnóstico (VIN, Part Number, CalID e DTCs)
@@ -234,16 +239,17 @@ export class J1850Decoder {
     }
 
     // =========================================================================
-    // 3. HARLEY TEMPERATURA MOTOR (Frame A8 49 10 10 XX -> XX = graus Fahrenheit)
+    // 3. HARLEY TEMPERATURA MOTOR (Frame A8 49 10 10 XX -> °C = RAW - 40)
+    //    Validado em moto real contra DPID 0x12 em múltiplos pontos térmicos.
     // =========================================================================
     else if (cleanHex.startsWith('a8491010')) {
       const idx = 0;
       if (cleanHex.length >= idx + 10) {
         const hexByte = cleanHex.substr(idx + 8, 2);
-        const tempFahrenheit = parseInt(hexByte, 16);
-        if (!isNaN(tempFahrenheit)) {
-          telemetry.engineTempF = tempFahrenheit;
-          telemetry.engineTempC = Math.round(((tempFahrenheit - 32) * 5) / 9);
+        const rawTemp = parseInt(hexByte, 16);
+        if (!isNaN(rawTemp)) {
+          telemetry.engineTempC = rawTemp - 40;
+          telemetry.engineTempF = Math.round((telemetry.engineTempC * 9) / 5 + 32);
           packetLog = {
             id: Math.random().toString(36).substring(2, 9),
             timestamp: new Date().toLocaleTimeString(),
@@ -308,7 +314,7 @@ export class J1850Decoder {
 
     // =========================================================================
     // 5. HARLEY NEUTRO E EMBREAGEM (Frame 48 3B 40 XX)
-    // Semântica do parser original HarleyDroid:
+    // Semântica do parser original referência técnica:
     //   XX = 0x20 -> fora do neutro
     //   XX = 0xA0 -> neutro
     //   bit 0x80  -> embreagem acionada
@@ -406,7 +412,7 @@ export class J1850Decoder {
 
     // =========================================================================
     // 8. HARLEY NÍVEL DE COMBUSTÍVEL / FUEL GAUGE (Frame A8 83 61 12 dX ou A8 83 61 92 dX)
-    // HarleyDroid (J1850.java): (x & 0xffffff7f) == 0xa8836112
+    // referência técnica (J1850.java): (x & 0xffffff7f) == 0xa8836112
     // in[4] & 0x0f: fuelLevelRaw (escala bruta Harley 0–15)
     // (in[3] & 0x80) != 0: fuelLow (indicador de combustível baixo/reserva)
     // O último byte (ex: F0 em A8 83 61 12 EF F0) é CRC J1850 e NÃO é interpretado como dado.
@@ -625,10 +631,10 @@ export class J1850Decoder {
     }
 
     // =========================================================================
-    // 10. HARLEY ACTIVE DATA - TTS/HDC2 DPID 0x11
+    // 10. HARLEY ACTIVE DATA - dados ativos DPID 0x11
     // Request: 6C 10 F1 2A 01 11
     // Response: 6C F1 10 6A 11 [RPM_H] [RPM_L] [DesiredIdle] [Battery] [MAP] [TPS] [CRC]
-    // TTS HD-DatastreamConfig: DPID 0x11 -> $2001,$2002,$2003,$2004,$2005.
+    // dados ativos HD-DatastreamConfig: DPID 0x11 -> $2001,$2002,$2003,$2004,$2005.
     // =========================================================================
     else if (cleanHex.startsWith('6cf1106a11')) {
       const frameBytes = bytes;
@@ -641,8 +647,8 @@ export class J1850Decoder {
         const mapRaw = frameBytes[9];
         const tpsRaw = frameBytes[10];
 
-        // Do not replace the proven passive RPM broadcast yet; log the TTS RPM as a cross-check.
-        const ttsRpm = rpmRaw;
+        // Do not replace the proven passive RPM broadcast yet; log the dados ativos RPM as a cross-check.
+        const activeRpm = rpmRaw;
         const desiredIdleRpm = desiredIdleRaw * 8;
         telemetry.batteryVoltage = Math.round((batteryRaw * 0.1) * 10) / 10;
         telemetry.manifoldPressureKpa = Math.round((mapRaw * 0.368999988 + 10.35400009) * 10) / 10;
@@ -653,7 +659,7 @@ export class J1850Decoder {
           timestamp: new Date().toLocaleTimeString(),
           type: 'rx',
           raw: originalLine,
-          decoded: `[SOURCE:ECM-ACTIVE][DPID:0x11] Battery=${telemetry.batteryVoltage.toFixed(1)}V | MAP=${telemetry.manifoldPressureKpa.toFixed(1)}kPa | TPS=${telemetry.throttlePosition.toFixed(1)}% | TTS-RPM=${ttsRpm} | DesiredIdle=${desiredIdleRpm} RPM`,
+          decoded: `[SOURCE:ECM-ACTIVE][DPID:0x11] Battery=${telemetry.batteryVoltage.toFixed(1)}V | MAP=${telemetry.manifoldPressureKpa.toFixed(1)}kPa | TPS=${telemetry.throttlePosition.toFixed(1)}% | Active-RPM=${activeRpm} | DesiredIdle=${desiredIdleRpm} RPM`,
           tag: 'STATUS',
         };
       }
@@ -661,8 +667,8 @@ export class J1850Decoder {
 
 
     // =========================================================================
-    // 10B. HARLEY ACTIVE DATA - TTS/HDC2 DPID 0x12 (Rev11 experimental/log-only)
-    // DataMaster mapping: Engine Temp raw-16 C; IAT raw-16 C; four sensor voltages raw*0.01953125 V.
+    // 10B. HARLEY ACTIVE DATA - dados ativos DPID 0x12 (Rev11 experimental/log-only)
+    // catálogo técnico mapping: Engine Temp raw-16 C; IAT raw-16 C; four sensor voltages raw*0.01953125 V.
     // Deliberadamente NÃO substitui a temperatura passiva do painel nesta revisão.
     // =========================================================================
     else if (cleanHex.startsWith('6cf1106a12')) {
@@ -679,49 +685,49 @@ export class J1850Decoder {
           timestamp: new Date().toLocaleTimeString(),
           type: 'rx',
           raw: originalLine,
-          decoded: `[DATAMASTER-TEST][DPID:0x12] EngineTemp=${engineTempCActive}°C | IAT=${intakeTempCActive}°C | ET=${etVolts.toFixed(3)}V | IAT=${iatVolts.toFixed(3)}V | MAP=${mapVolts.toFixed(3)}V | TPS=${tpsVolts.toFixed(3)}V | RAW=${frameBytes.slice(5, 11).map(v => v.toString(16).padStart(2, '0')).join(' ').toUpperCase()}`,
+          decoded: `[RESEARCH-TEST][DPID:0x12] EngineTemp=${engineTempCActive}°C | IAT=${intakeTempCActive}°C | ET=${etVolts.toFixed(3)}V | IAT=${iatVolts.toFixed(3)}V | MAP=${mapVolts.toFixed(3)}V | TPS=${tpsVolts.toFixed(3)}V | RAW=${frameBytes.slice(5, 11).map(v => v.toString(16).padStart(2, '0')).join(' ').toUpperCase()}`,
           tag: 'STATUS',
         };
       }
     }
 
     // =========================================================================
-    // 10C. DATAMASTER J1850 - DPIDs experimentais catalogados (log-only)
+    // 10C. RESEARCH J1850 - DPIDs experimentais catalogados (log-only)
     // Nenhum destes campos altera o painel nesta revisão. O objetivo é validar
-    // na moto o catálogo extraído do DataMaster antes de promover qualquer fonte.
+    // na moto o catálogo extraído do catálogo técnico antes de promover qualquer fonte.
     // =========================================================================
     else if (cleanHex.startsWith('6cf1106a13') && bytes.length >= 11) {
       const d = bytes.slice(5, 11);
       packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
-        decoded: `[DATAMASTER-TEST][DPID:0x13] SparkF=${(d[0]*0.5).toFixed(1)}° | SparkR=${(d[1]*0.5).toFixed(1)}° | KnockFastF=${(d[2]*0.5).toFixed(1)}° | KnockFastR=${(d[3]*0.5).toFixed(1)}° | IAC=${d[4]} | EngineFlag=0x${d[5].toString(16).padStart(2,'0').toUpperCase()} | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+        decoded: `[RESEARCH-TEST][DPID:0x13] SparkF=${(d[0]*0.5).toFixed(1)}° | SparkR=${(d[1]*0.5).toFixed(1)}° | KnockFastF=${(d[2]*0.5).toFixed(1)}° | KnockFastR=${(d[3]*0.5).toFixed(1)}° | IAC=${d[4]} | EngineFlag=0x${d[5].toString(16).padStart(2,'0').toUpperCase()} | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
     }
     else if (cleanHex.startsWith('6cf1106a16') && bytes.length >= 11) {
       const d = bytes.slice(5, 11);
       const u16=(i:number)=>((d[i]<<8)|d[i+1]);
       packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
-        decoded: `[DATAMASTER-TEST][DPID:0x16] AccelEnrich=${(u16(0)*0.004).toFixed(3)}ms | InjectorBPW-F=${(u16(2)*0.004).toFixed(3)}ms | InjectorBPW-R=${(u16(4)*0.004).toFixed(3)}ms | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+        decoded: `[RESEARCH-TEST][DPID:0x16] AccelEnrich=${(u16(0)*0.004).toFixed(3)}ms | InjectorBPW-F=${(u16(2)*0.004).toFixed(3)}ms | InjectorBPW-R=${(u16(4)*0.004).toFixed(3)}ms | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
     }
     else if (cleanHex.startsWith('6cf1106a17') && bytes.length >= 11) {
       const d = bytes.slice(5, 11);
       const u16=(i:number)=>((d[i]<<8)|d[i+1]);
       packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
-        decoded: `[DATAMASTER-TEST][DPID:0x17] DecelEnlean=${(u16(0)*0.004).toFixed(3)}ms | SparkF-hi=${(u16(2)*0.25).toFixed(2)}° | SparkR-hi=${(u16(4)*0.25).toFixed(2)}° | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+        decoded: `[RESEARCH-TEST][DPID:0x17] DecelEnlean=${(u16(0)*0.004).toFixed(3)}ms | SparkF-hi=${(u16(2)*0.25).toFixed(2)}° | SparkR-hi=${(u16(4)*0.25).toFixed(2)}° | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
     }
     else if (cleanHex.startsWith('6cf1106a18') && bytes.length >= 11) {
       const d = bytes.slice(5, 11);
       packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
-        decoded: `[DATAMASTER-TEST][DPID:0x18] VE-F=${d[0]} | VE-R=${d[1]} | VE-New-F=${d[2]} | VE-New-R=${d[3]} | WarmUpAFR-raw=${d[4]} | IAC=${d[5]} | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+        decoded: `[RESEARCH-TEST][DPID:0x18] VE-F=${d[0]} | VE-R=${d[1]} | VE-New-F=${d[2]} | VE-New-R=${d[3]} | WarmUpAFR-raw=${d[4]} | IAC=${d[5]} | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
     }
     else if (cleanHex.startsWith('6cf1106a1a') && bytes.length >= 11) {
       const d = bytes.slice(5, 11);
       const u16=(i:number)=>((d[i]<<8)|d[i+1]);
       packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
-        decoded: `[DATAMASTER-TEST][DPID:0x1A] O2RawF=${(u16(0)*0.0763126).toFixed(3)}mV | O2RawR=${(u16(2)*0.0763126).toFixed(3)}mV | KnockF=${(d[4]*0.25).toFixed(2)}° | KnockR=${(d[5]*0.25).toFixed(2)}° | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+        decoded: `[RESEARCH-TEST][DPID:0x1A] O2RawF=${(u16(0)*0.0763126).toFixed(3)}mV | O2RawR=${(u16(2)*0.0763126).toFixed(3)}mV | KnockF=${(d[4]*0.25).toFixed(2)}° | KnockR=${(d[5]*0.25).toFixed(2)}° | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
     }
     else if (cleanHex.startsWith('6cf1106a1d') && bytes.length >= 11) {
       const d = bytes.slice(5, 11);
       packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
-        decoded: `[DATAMASTER-TEST][DPID:0x1D][GENERIC-O2] O2F=${d[0]*20}mV | O2R=${d[1]*20}mV | IntegratorF=${(d[2]*0.78125).toFixed(2)}% | IntegratorR=${(d[3]*0.78125).toFixed(2)}% | LongTermF=${(d[4]*0.78125).toFixed(2)}% | LongTermR=${(d[5]*0.78125).toFixed(2)}% | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+        decoded: `[RESEARCH-TEST][DPID:0x1D][GENERIC-O2] O2F=${d[0]*20}mV | O2R=${d[1]*20}mV | IntegratorF=${(d[2]*0.78125).toFixed(2)}% | IntegratorR=${(d[3]*0.78125).toFixed(2)}% | LongTermF=${(d[4]*0.78125).toFixed(2)}% | LongTermR=${(d[5]*0.78125).toFixed(2)}% | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
     }
     // Para os demais DPIDs J1850 catalogados, preservar os seis bytes integralmente
     // até validarmos na moto a variante/configuração exata e suas fórmulas.
@@ -729,7 +735,7 @@ export class J1850Decoder {
       const dpid = cleanHex.substring(8,10).toUpperCase();
       const d = bytes.slice(5, 11);
       packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
-        decoded: `[DATAMASTER-TEST][DPID:0x${dpid}][MAPPED-RAW] ${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+        decoded: `[RESEARCH-TEST][DPID:0x${dpid}][MAPPED-RAW] ${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
     }
 
     // =========================================================================
@@ -767,7 +773,7 @@ export class J1850Decoder {
 
       const parsedCodes: string[] = [];
 
-      // Cada código DTC Harley é rigorosamente composto por 2 bytes (HarleyDroid in[4], in[5])
+      // Cada código DTC Harley é rigorosamente composto por 2 bytes (referência técnica in[4], in[5])
       for (let i = 0; i + 1 < dataBytes.length; i += 2) {
         const b0 = dataBytes[i];
         const b1 = dataBytes[i + 1];
@@ -790,7 +796,7 @@ export class J1850Decoder {
         const fullCode = `${prefix}${digit1}${digit2}${digit3}${digit4}`.toUpperCase();
 
         // P0000 nunca deve ser registrado como falha.
-        // HarleyDroid classifica a resposta pelo endereço de origem:
+        // referência técnica classifica a resposta pelo endereço de origem:
         // 0x10 = histórico; 0x40 = atual; 0x60 = não classificado como DTC atual/histórico.
         if (fullCode && fullCode !== 'P0000') {
           parsedCodes.push(fullCode);
