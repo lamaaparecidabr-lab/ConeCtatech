@@ -34,6 +34,7 @@ import { OxygenSensorsPanel } from './components/OxygenSensorsPanel';
 import { DataloggerPanel } from './components/DataloggerPanel';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { VehicleIdentityCard } from './components/VehicleIdentityCard';
 import orangeVTwinLogo from './assets/orange-vtwin.png';
 import darkBaggerLogo from './assets/dark-bagger.png';
 
@@ -205,7 +206,7 @@ export default function App() {
     }
   };
 
-  // Alterna entre Dashboard e Diagnóstico (idêntico ao botão da injeção do HarleyDroid original)
+  // Alterna entre Dashboard e Diagnóstico (idêntico ao botão da injeção do referência técnica original)
   const handleAlternarTela = async () => {
     if (activeTab === 'dashboard') {
       setActiveTab('diagnostics');
@@ -243,7 +244,7 @@ export default function App() {
           checkEngine: false,
         }));
 
-        // HarleyDroid restaura a leitura normal 2 s após o comando de limpeza.
+        // referência técnica restaura a leitura normal 2 s após o comando de limpeza.
         // Fazemos a releitura para que uma falha ainda presente reapareça como CURRENT/HISTORIC
         // conforme a resposta real da moto, em vez de manter a UI artificialmente zerada.
         await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -538,6 +539,12 @@ export default function App() {
         {/* Tab 1: Dashboard View (id: tela-dashboard) */}
         {activeTab === 'dashboard' && (
           <div id="tela-dashboard" className="space-y-6">
+            <VehicleIdentityCard
+              vin={telemetry.vin}
+              protocol={telemetry.vehicleProtocol}
+              isConnected={isConnected}
+            />
+
             {/* Header controls for dashboard view style */}
             <div className="flex items-center justify-between border-b border-neutral-800/80 pb-3">
               <div className="flex items-center gap-2">

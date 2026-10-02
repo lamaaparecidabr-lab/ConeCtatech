@@ -5,6 +5,7 @@ export interface TelemetryData {
   engineTempF: number;
   engineTempC: number;
   batteryVoltage: number;
+  elmSupplyVoltage?: number;
   gear: number | 'N'; // 1 to 6 or N
   turnLeft: boolean;
   turnRight: boolean;
@@ -21,6 +22,7 @@ export interface TelemetryData {
   engineMinutesTotal?: number;
   engineIgnitionCycles?: number;
   vin?: string;
+  vehicleProtocol?: 'J1850 VPW' | 'CAN';
   ecuPartNumber?: string;
   ecuCalId?: string;
   ecuSoftwareLevel?: number;
