@@ -1741,13 +1741,13 @@ export class ELM327Connection {
           this.currentTelemetryState,
           (p) => {
             this.onPacketLog(p);
-        // O frame A8 69 é mantido para exercitar o decoder, mas seu contador de 16 bits
-        // sofre wrap e não representa sozinho um odômetro total de dezenas de milhares de km.
-        // No modo simulador, preservamos o odômetro sintético completo para a auditoria/UI.
-        this.currentTelemetryState.odometerKm = Math.round(this.simOdometerKm);
-
           }
         );
+
+        // SIMULADOR: o A8 69 acima continua exercitando o decoder real, porém seu
+        // contador de 16 bits sofre wrap. Para a UI/auditoria do simulador,
+        // preserva-se o odômetro histórico completo + deslocamento desta sessão.
+        this.currentTelemetryState.odometerKm = Math.round(this.simOdometerKm);
 
         // Oscilação de Sondas Lambda O2
         const timeSec = tick * 0.05;
