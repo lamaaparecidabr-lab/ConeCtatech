@@ -139,7 +139,7 @@ export class ELM327Connection {
   private simTempF = 185;
   private simGear: number | 'N' = 'N';
   private simRunning = false;
-  private simOdometerKm = 34226;
+  private simOdometerKm = 34120;
   private simEngineHours = 892;
   private simEngineMinutes = 24;
   private simEngineStarts = 3120;
@@ -1678,8 +1678,13 @@ export class ELM327Connection {
       }
       this.simRpm = Math.max(0, Math.min(6500, Math.round(this.simRpm)));
 
-      this.simSpeed += (this.simTargetSpeed - this.simSpeed) * 0.2;
-      this.simSpeed = Math.max(0, Math.min(220, Math.round(this.simSpeed)));
+      const speedDelta = this.simTargetSpeed - this.simSpeed;
+      if (Math.abs(speedDelta) <= 2) {
+        this.simSpeed = this.simTargetSpeed;
+      } else {
+        this.simSpeed += speedDelta * 0.2;
+        this.simSpeed = Math.max(0, Math.min(220, Math.round(this.simSpeed)));
+      }
 
       if (this.simSpeed > 0) {
         this.simOdometerKm += (this.simSpeed / 3600) * 0.12;
@@ -1736,6 +1741,11 @@ export class ELM327Connection {
           this.currentTelemetryState,
           (p) => {
             this.onPacketLog(p);
+        // O frame A8 69 é mantido para exercitar o decoder, mas seu contador de 16 bits
+        // sofre wrap e não representa sozinho um odômetro total de dezenas de milhares de km.
+        // No modo simulador, preservamos o odômetro sintético completo para a auditoria/UI.
+        this.currentTelemetryState.odometerKm = Math.round(this.simOdometerKm);
+
           }
         );
 
