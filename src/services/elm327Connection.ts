@@ -1237,6 +1237,13 @@ export class ELM327Connection {
           const elmRejected = normalized.includes('?');
           if (res.success) {
             if (item.id === '11') activeDpid11Success = 1;
+            // O decoder já armazenou os valores positivos. Mantém o estado da consulta explícito na telemetria.
+            const previousDpid = this.currentTelemetryState.activeDpidData?.[item.id];
+            this.currentTelemetryState.activeDpidData = {
+              ...(this.currentTelemetryState.activeDpidData || {}),
+              [item.id]: previousDpid || { dpid: item.id, status: 'ok', updatedAt: Date.now(), note: 'Resposta positiva recebida; consulte RAW/log quando ainda não houver fórmula validada.' },
+            };
+            this.onTelemetryUpdate({ ...this.currentTelemetryState });
             experimentalResults.push(`0x${item.id}:OK`);
             this.onPacketLog({
               id: Math.random().toString(36).substring(2, 9),
@@ -1248,6 +1255,17 @@ export class ELM327Connection {
             });
           } else {
             experimentalResults.push(`0x${item.id}:${negative ? 'NEG' : elmRejected ? 'ELM?' : 'TIMEOUT'}`);
+            this.currentTelemetryState.activeDpidData = {
+              ...(this.currentTelemetryState.activeDpidData || {}),
+              [item.id]: {
+                dpid: item.id,
+                status: negative ? 'negative' : 'timeout',
+                raw: res.reply.trim() || undefined,
+                updatedAt: Date.now(),
+                note: negative ? 'ECM respondeu negativamente à consulta nesta motocicleta.' : (elmRejected ? 'Comando rejeitado pelo ELM.' : 'Sem resposta dentro do tempo da consulta.'),
+              },
+            };
+            this.onTelemetryUpdate({ ...this.currentTelemetryState });
             this.onPacketLog({
               id: Math.random().toString(36).substring(2, 9),
               timestamp: new Date().toLocaleTimeString(),
@@ -1652,6 +1670,25 @@ export class ELM327Connection {
       ecuSoftwareLevel: 8,
       activeDtcList: [...this.simActiveDtcs],
       historicDtcList: [...this.simHistoricDtcs],
+      activeDpidData: {
+        '11': { dpid:'11', status:'ok', raw:'03 D4 7A 8D 3B 00', updatedAt:Date.now(), values:{ RPM:980, 'Desired Idle':976, 'Bateria (V)':14.1, 'MAP (kPa)':32.1, 'TPS (%)':0 }, note:'Simulação de DPID ativo.' },
+        '12': { dpid:'12', status:'ok', raw:'62 2C 62 B8 6C 1B', updatedAt:Date.now(), values:{ 'Temp. motor (°C)':82, 'IAT (°C)':28, 'ET sensor (V)':1.914, 'IAT sensor (V)':3.594, 'MAP sensor (V)':2.109, 'TPS sensor (V)':0.527 }, note:'Simulação de DPID ativo.' },
+        '13': { dpid:'13', status:'ok', raw:'28 28 00 00 32 01', updatedAt:Date.now(), values:{ 'Spark Front (°)':20, 'Spark Rear (°)':20, 'Knock Fast F (°)':0, 'Knock Fast R (°)':0, IAC:50, 'Engine Flag':'0x01' }, note:'Simulação funcional.' },
+        '14': { dpid:'14', status:'ok', raw:'00 00 00 00 00 00', updatedAt:Date.now(), values:{}, note:'RAW simulado; fórmulas ainda não promovidas como validadas.' },
+        '15': { dpid:'15', status:'ok', raw:'00 00 00 00 00 00', updatedAt:Date.now(), values:{}, note:'RAW simulado; fórmulas ainda não promovidas como validadas.' },
+        '16': { dpid:'16', status:'ok', raw:'00 00 01 F4 01 F4', updatedAt:Date.now(), values:{ 'Accel Enrich (ms)':0, 'Injector BPW F (ms)':2, 'Injector BPW R (ms)':2 }, note:'Simulação funcional.' },
+        '17': { dpid:'17', status:'ok', raw:'00 00 00 50 00 50', updatedAt:Date.now(), values:{ 'Decel Enlean (ms)':0, 'Spark F hi-res (°)':20, 'Spark R hi-res (°)':20 }, note:'Simulação funcional.' },
+        '18': { dpid:'18', status:'ok', raw:'50 50 50 50 75 32', updatedAt:Date.now(), values:{ 'VE Front':80, 'VE Rear':80, 'VE New Front':80, 'VE New Rear':80, 'Warm Up AFR raw':117, IAC:50 }, note:'Simulação funcional.' },
+        '19': { dpid:'19', status:'ok', raw:'2C 32 62 62 00 1B', updatedAt:Date.now(), values:{ 'Air Temp (°C)':28, 'Charge Temp (°C)':34, 'Engine Temp (°C)':82, 'Head Temp (°C)':82, 'TPS (%)':0, 'TPS (V)':0.527 }, note:'Simulação funcional.' },
+        '1A': { dpid:'1A', status:'ok', raw:'06 66 06 66 00 00', updatedAt:Date.now(), values:{ 'O2 Raw Front (mV)':125, 'O2 Raw Rear (mV)':125, 'Knock Front (°)':0, 'Knock Rear (°)':0 }, note:'Simulação funcional.' },
+        '1B': { dpid:'1B', status:'ok', raw:'03 D4 0A 3C 01 00', updatedAt:Date.now(), values:{ RPM:980, 'Run Time raw':10, 'Barometer (kPa)':32.5, 'Sync raw':'0x01', 'Vehicle Speed raw':0 }, note:'Simulação funcional.' },
+        '1C': { dpid:'1C', status:'ok', raw:'00 00 00 00 00 00', updatedAt:Date.now(), values:{}, note:'RAW simulado; fórmulas ainda não promovidas como validadas.' },
+        '1D': { dpid:'1D', status:'ok', raw:'20 20 80 80 80 80', updatedAt:Date.now(), values:{ 'O2 Front (mV)':640, 'O2 Rear (mV)':640, 'Integrator F (%)':100, 'Integrator R (%)':100, 'Long Term F (%)':100, 'Long Term R (%)':100 }, note:'Mapeamento genérico O2 — experimental.' },
+        '1E': { dpid:'1E', status:'negative', updatedAt:Date.now(), note:'Resposta negativa reproduzida conforme teste real.' },
+        '1F': { dpid:'1F', status:'negative', updatedAt:Date.now(), note:'Resposta negativa reproduzida conforme teste real.' },
+        '20': { dpid:'20', status:'negative', updatedAt:Date.now(), note:'Resposta negativa reproduzida conforme teste real.' },
+        '21': { dpid:'21', status:'negative', updatedAt:Date.now(), note:'Resposta negativa reproduzida conforme teste real.' },
+      },
       lastUpdated: Date.now(),
     };
 
