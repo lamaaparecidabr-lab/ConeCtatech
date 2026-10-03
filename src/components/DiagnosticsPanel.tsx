@@ -20,6 +20,8 @@ import {
   Filter,
 } from 'lucide-react';
 import { BANCO_ERROS_HARLEY } from '../services/j1850Decoder';
+import { ActiveDpidSnapshot } from '../types';
+import { DpidScannerPanel } from './DpidScannerPanel';
 
 interface DiagnosticsPanelProps {
   rpm: number;
@@ -37,6 +39,7 @@ interface DiagnosticsPanelProps {
   onReadDTC: () => Promise<void>;
   onClearDTC: () => void;
   isConnected: boolean;
+  activeDpidData?: Record<string, ActiveDpidSnapshot>;
 }
 
 export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = ({
@@ -55,6 +58,7 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = ({
   onReadDTC,
   onClearDTC,
   isConnected,
+  activeDpidData,
 }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [justCleared, setJustCleared] = useState(false);
@@ -437,6 +441,8 @@ Gerado via Harley VPW Diagnostic Tool
           </div>
         </div>
 
+
+        <DpidScannerPanel data={activeDpidData} isConnected={isConnected} />
 
         {/* 3. SEÇÃO DE AUDITORIA DE KM & HORAS (Análise Anti-Fraude) */}
         <div id="sec-auditoria" className="scroll-mt-24">
