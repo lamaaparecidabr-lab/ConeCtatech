@@ -585,6 +585,19 @@ export default function App() {
           </div>
         )}
 
+        {/* V1 non-regression: operational ELM327/Sniffer log on the main Panel.
+            Keeps quick TXT export available exactly where a failure is reproduced. */}
+        {activeTab === 'dashboard' && (
+          <div className="w-full max-w-4xl mx-auto mt-5">
+            <TerminalConsole
+              logs={logs}
+              onSendCommand={handleSendCommand}
+              onClearLogs={() => setLogs([])}
+              isConnected={isConnected}
+            />
+          </div>
+        )}
+
         {activeTab === 'diagnostics' && (
           <div id="tela-diagnostico">
             <DiagnosticsPanel
