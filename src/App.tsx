@@ -270,7 +270,10 @@ export default function App() {
 
   const isConnected = connectionType !== 'disconnected';
   const vehicleIdentity = telemetry.vin ? identifyHarleyVehicle(telemetry.vin) : null;
-  const realVehicleIdentified = connectionType !== 'disconnected' && connectionType !== 'simulator' && Boolean(telemetry.vin);
+  // A identificação vale tanto para a moto real quanto para o simulador.
+  // O simulador já fornece o VIN genérico 1HD1KB41X7Y123456, permitindo
+  // exercitar exatamente o mesmo harleyVehicleIdentifier usado com a moto.
+  const vehicleIdentified = connectionType !== 'disconnected' && Boolean(telemetry.vin) && Boolean(vehicleIdentity);
 
   const handleUpdateSimulator = (rpm: number, speed: number, gear: number | 'N') => {
     connectionRef.current?.updateSimulatorInputs(rpm, speed, gear);
@@ -293,10 +296,10 @@ export default function App() {
             </>
           </div>
 
-          {/* Identificação contextual da motocicleta. O Bar & Shield real entra
-              somente quando uma moto real tiver sido identificada. */}
-          <div className={`v2-vehicle-id ${realVehicleIdentified ? 'identified' : connectionType === 'simulator' ? 'simulator' : 'waiting'}`}>
-            {realVehicleIdentified ? (
+          {/* Identificação contextual da motocicleta.
+              No simulador, o VIN genérico percorre o mesmo identificador da moto real. */}
+          <div className={`v2-vehicle-id ${vehicleIdentified ? 'identified' : 'waiting'}`}>
+            {vehicleIdentified ? (
               <>
                 <div className="v2-hd-logo-slot" aria-label="Harley-Davidson Bar & Shield"><img src={harleyBarShield} alt="Harley-Davidson" /></div>
                 <div className="v2-vehicle-copy">
@@ -304,11 +307,6 @@ export default function App() {
                   <strong>{vehicleIdentity?.modelYear ? `${vehicleIdentity.modelYear} · ${vehicleIdentity.factoryModel || vehicleIdentity.commercialName || 'Harley-Davidson'}` : 'Harley-Davidson'}</strong>
                 </div>
               </>
-            ) : connectionType === 'simulator' ? (
-              <div className="v2-vehicle-copy">
-                <span>Modo simulador</span>
-                <strong>Motocicleta simulada</strong>
-              </div>
             ) : (
               <div className="v2-vehicle-copy">
                 <span>Identificação da moto</span>
