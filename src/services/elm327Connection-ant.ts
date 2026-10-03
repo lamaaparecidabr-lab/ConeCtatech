@@ -822,6 +822,10 @@ export class ELM327Connection {
   private async stopMonitorAndWaitForPrompt(timeoutMs: number = 1500): Promise<boolean> {
     return new Promise(async (resolve) => {
       let done = false;
+      // REV11.1e: um prompt residual não prova que ATMA terminou. Em hardware real,
+      // a interrupção válida do monitor deve observar STOPPED antes do prompt final.
+      // Isso impede comandos ativos de entrarem enquanto o ELM ainda está saindo do ATMA.
+      let stoppedSeen = this.connectionType === 'simulator';
       const finish = (ok: boolean) => {
         if (done) return;
         done = true;
@@ -835,7 +839,12 @@ export class ELM327Connection {
         resolve(ok);
       };
       const listener = (line: string) => {
-        if (line.trim() === '>') finish(true);
+        const normalized = line.trim().toUpperCase();
+        if (normalized === 'STOPPED') {
+          stoppedSeen = true;
+          return;
+        }
+        if (normalized === '>' && stoppedSeen) finish(true);
       };
       this.responseListeners.push(listener);
       const timer = setTimeout(() => finish(false), timeoutMs);

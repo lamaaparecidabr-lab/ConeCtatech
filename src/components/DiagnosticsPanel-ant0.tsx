@@ -299,7 +299,7 @@ Gerado via Harley VPW Diagnostic Tool
 
         {/* 2. SEÇÃO DE CÓDIGOS DE FALHA (DTC CONTAINER) */}
         <div id="sec-dtc" className="scroll-mt-24 space-y-4">
-          {/* 3A. FALHAS ATUAIS — classificadas pelo byte STATUS J1850 */}
+          {/* 3A. FALHAS ATUAIS — classificadas pelo byte STATUS TTS/DataMaster */}
           <div className="bg-[#161616] border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-neutral-800 pb-3 gap-3">
               <div className="flex items-center gap-2">
@@ -370,7 +370,7 @@ Gerado via Harley VPW Diagnostic Tool
             )}
           </div>
 
-          {/* 3B. FALHAS HISTÓRICAS — classificadas pelo byte STATUS J1850 */}
+          {/* 3B. FALHAS HISTÓRICAS — classificadas pelo byte STATUS TTS/DataMaster */}
           <div className="bg-[#161616] border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-neutral-800 pb-3 gap-3">
               <div className="flex items-center gap-2">

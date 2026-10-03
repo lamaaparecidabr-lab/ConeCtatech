@@ -1068,10 +1068,10 @@ export class ELM327Connection {
     }
 
     // 2. CONSULTA DE DTCs HARLEY (6C 10/40/60 F1 19 52 FF 00)
-    // A classificação histórico/atual é feita pela resposta: 0x10 = histórico, 0x40 = atual.
-    // 0x60 é consultado pelo referência técnica, mas não é classificado como atual/histórico pelo parser original.
-    // Endereço 0x10 = DTC histórico
-    this.onStatusChange('Configurando cabeçalho DTC histórico (ATSH 6C 10 F1)...');
+    // 0x10/0x40/0x60 são nós de origem. Current/Historic é determinado pelo byte STATUS de cada DTC no decoder (lógica TTS).
+    // Mantemos as três consultas observadas; o endereço não define o estado da falha.
+    // Nó diagnóstico 0x10
+    this.onStatusChange('Configurando cabeçalho diagnóstico do nó 0x10 (ATSH 6C 10 F1)...');
     const hDtc10 = await this.chat('ATSH 6C 10 F1', 'OK', 500);
     if (!hDtc10.success) {
       this.onPacketLog({
@@ -1079,11 +1079,11 @@ export class ELM327Connection {
         timestamp: new Date().toLocaleTimeString(),
         type: 'error',
         raw: 'ATSH 6C 10 F1 FAIL',
-        decoded: 'Erro ao configurar cabeçalho ATSH 6C 10 F1 para consulta de DTC histórico.',
+        decoded: 'Erro ao configurar cabeçalho ATSH 6C 10 F1 para consulta DTC do nó 0x10.',
         tag: 'AT',
       });
     } else {
-      this.onStatusChange('Lendo DTCs históricos (resposta 0x10)...');
+      this.onStatusChange('Lendo DTCs do nó 0x10 e seus bytes de status...');
       const resDtc10 = await this.chat('19 52 FF 00', '6CF11059', 2000);
       if (resDtc10.success) {
         dtcSuccessCount++;
@@ -1092,7 +1092,7 @@ export class ELM327Connection {
           timestamp: new Date().toLocaleTimeString(),
           type: 'rx',
           raw: resDtc10.reply.trim() || '19 52 FF 00',
-          decoded: '[DTC] Consulta resposta 0x10 (Histórico): OK',
+          decoded: '[DTC] Consulta nó 0x10: OK — estado Current/Historic será obtido do byte STATUS.',
           tag: 'DTC',
         });
       } else {
@@ -1101,7 +1101,7 @@ export class ELM327Connection {
           timestamp: new Date().toLocaleTimeString(),
           type: 'error',
           raw: 'FAIL: 19 52 FF 00 (0x10)',
-          decoded: '[DTC] Consulta resposta 0x10 (Histórico): TIMEOUT / SEM RESPOSTA',
+          decoded: '[DTC] Consulta nó 0x10: TIMEOUT / SEM RESPOSTA',
           tag: 'DTC',
         });
       }
@@ -1109,8 +1109,8 @@ export class ELM327Connection {
     // referência técnica aguarda GET_DTC_TIMEOUT (2000 ms) antes da próxima consulta.
     await sleep(2000);
 
-    // Endereço 0x40 = DTC atual
-    this.onStatusChange('Configurando cabeçalho DTC atual (ATSH 6C 40 F1)...');
+    // Nó diagnóstico 0x40
+    this.onStatusChange('Configurando cabeçalho diagnóstico do nó 0x40 (ATSH 6C 40 F1)...');
     const hDtc40 = await this.chat('ATSH 6C 40 F1', 'OK', 500);
     if (!hDtc40.success) {
       this.onPacketLog({
@@ -1118,11 +1118,11 @@ export class ELM327Connection {
         timestamp: new Date().toLocaleTimeString(),
         type: 'error',
         raw: 'ATSH 6C 40 F1 FAIL',
-        decoded: 'Erro ao configurar cabeçalho ATSH 6C 40 F1 para consulta de DTC atual.',
+        decoded: 'Erro ao configurar cabeçalho ATSH 6C 40 F1 para consulta DTC do nó 0x40.',
         tag: 'AT',
       });
     } else {
-      this.onStatusChange('Lendo DTCs atuais (resposta 0x40)...');
+      this.onStatusChange('Lendo DTCs do nó 0x40 e seus bytes de status...');
       const resDtc40 = await this.chat('19 52 FF 00', '6CF14059', 2000);
       if (resDtc40.success) {
         dtcSuccessCount++;
@@ -1131,7 +1131,7 @@ export class ELM327Connection {
           timestamp: new Date().toLocaleTimeString(),
           type: 'rx',
           raw: resDtc40.reply.trim() || '19 52 FF 00',
-          decoded: '[DTC] Consulta resposta 0x40 (Atual): OK',
+          decoded: '[DTC] Consulta nó 0x40: OK — estado Current/Historic será obtido do byte STATUS.',
           tag: 'DTC',
         });
       } else {
@@ -1140,7 +1140,7 @@ export class ELM327Connection {
           timestamp: new Date().toLocaleTimeString(),
           type: 'error',
           raw: 'FAIL: 19 52 FF 00 (0x40)',
-          decoded: '[DTC] Consulta resposta 0x40 (Atual): TIMEOUT / SEM RESPOSTA',
+          decoded: '[DTC] Consulta nó 0x40: TIMEOUT / SEM RESPOSTA',
           tag: 'DTC',
         });
       }
@@ -1339,8 +1339,8 @@ export class ELM327Connection {
 
     let confirmedCount = 0;
 
-    // 1. Limpa memória DTC do nó 0x10 (histórico)
-    this.onStatusChange('Apagando DTCs do nó 0x10 (histórico)...');
+    // 1. Solicita limpeza DTC ao nó 0x10
+    this.onStatusChange('Apagando DTCs no nó 0x10...');
     const h1 = await this.chat('ATSH 6C 10 F1', 'OK', 500);
     if (h1.success) {
       const r1 = await this.chat('14', '6CF11054', 1200);
@@ -1349,8 +1349,8 @@ export class ELM327Connection {
     // Mantém a mesma folga usada nas consultas DTC para evitar sobreposição no ELM/J1850.
     await sleep(2000);
 
-    // 2. Limpa memória DTC do nó 0x40 (atual)
-    this.onStatusChange('Apagando DTCs do nó 0x40 (atual)...');
+    // 2. Solicita limpeza DTC ao nó 0x40
+    this.onStatusChange('Apagando DTCs no nó 0x40...');
     const h2 = await this.chat('ATSH 6C 40 F1', 'OK', 500);
     if (h2.success) {
       const r2 = await this.chat('14', '6CF14054', 1200);
@@ -1359,7 +1359,7 @@ export class ELM327Connection {
     await sleep(2000);
 
     // 3. Tenta limpeza no endereço 0x60 apenas se o header for aceito.
-    // Neste veículo a leitura em 0x60 retornou NO DATA; não tratamos esse endereço como DTC atual.
+    // Neste veículo a leitura em 0x60 retornou NO DATA; o endereço permanece apenas como terceiro nó consultado.
     this.onStatusChange('Tentando limpeza no endereço diagnóstico 0x60...');
     const h3 = await this.chat('ATSH 6C 60 F1', 'OK', 500);
     if (h3.success) {
@@ -1833,14 +1833,14 @@ export class ELM327Connection {
     // Harley DTCs Read (19 52 FF 00)
     else if (u === '19 52 FF 00' || u === '1952FF00') {
       if (this.simCurrentHeader.includes('10')) {
-        // ECM Histórico: P0107 (01 07), P0118 (01 18)
-        resp = this.simHistoricDtcs.length > 0 ? '6C F1 10 59 01 07 01 18' : '6C F1 10 59 00 00';
+        // Nó 0x10: simulador inclui status TTS por DTC
+        resp = this.simHistoricDtcs.length > 0 ? '6C F1 10 59 01 07 10 01 18 12' : '6C F1 10 59 00 00 00';
       } else if (this.simCurrentHeader.includes('40')) {
-        // BCM/TSM Atual: P0131 (01 31)
-        resp = this.simActiveDtcs.length > 0 ? '6C F1 40 59 01 31' : '6C F1 40 59 00 00';
+        // Nó 0x40: simulador inclui status TTS por DTC
+        resp = this.simActiveDtcs.length > 0 ? '6C F1 40 59 01 31 02' : '6C F1 40 59 00 00 00';
       } else {
         // Velocímetro (Nó 0x60): Sem falhas
-        resp = '6C F1 60 59 00 00';
+        resp = '6C F1 60 59 00 00 00';
       }
     }
     // Harley Clear DTC (14)

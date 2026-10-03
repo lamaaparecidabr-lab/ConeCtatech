@@ -299,7 +299,7 @@ Gerado via Harley VPW Diagnostic Tool
 
         {/* 2. SEÇÃO DE CÓDIGOS DE FALHA (DTC CONTAINER) */}
         <div id="sec-dtc" className="scroll-mt-24 space-y-4">
-          {/* 3A. FALHAS ATUAIS — classificadas pelo byte STATUS J1850 */}
+          {/* 3A. FALHAS ATUAIS (Nó 0x40 / Ativas) */}
           <div className="bg-[#161616] border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-neutral-800 pb-3 gap-3">
               <div className="flex items-center gap-2">
@@ -370,12 +370,12 @@ Gerado via Harley VPW Diagnostic Tool
             )}
           </div>
 
-          {/* 3B. FALHAS HISTÓRICAS — classificadas pelo byte STATUS J1850 */}
+          {/* 3B. FALHAS HISTÓRICAS (Nó 0x10 / ECM) */}
           <div className="bg-[#161616] border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-neutral-800 pb-3 gap-3">
               <div className="flex items-center gap-2">
                 <div className="text-sm font-bold uppercase tracking-wider text-amber-500">
-                  Falhas Históricas / Memorizadas (DTC Histórico)
+                  Falhas Históricas Gravadas na ECM (DTC Histórico)
                 </div>
                 <span className="text-[10px] font-mono bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded font-bold text-neutral-300">
                   Total: {historicFaults.length}
@@ -387,18 +387,18 @@ Gerado via Harley VPW Diagnostic Tool
               <div className="py-6 text-center flex flex-col items-center">
                 <CheckCircle2 className="w-10 h-10 text-emerald-400 mb-2" />
                 <div className="text-emerald-400 italic text-sm font-medium">
-                  {isConnected ? 'Nenhuma falha histórica armazenada pelos módulos consultados.' : 'Aguardando leitura do scanner.'}
+                  {isConnected ? 'Nenhuma falha histórica armazenada na memória da ECM.' : 'Aguardando leitura do scanner.'}
                 </div>
                 <p className="text-xs text-neutral-500 mt-1">
-                  Nenhum dos módulos que responderam reportou DTC com o bit histórico ativo.
+                  A memória histórica da ECM não contém ocorrências passadas pendentes.
                 </p>
               </div>
             ) : (
               <ul className="space-y-3">
                 {historicFaults.map((code) => {
                   const errInfo = BANCO_ERROS_HARLEY[code] || {
-                    desc: 'Código gravado no histórico do módulo',
-                    category: 'Histórico do módulo',
+                    desc: 'Código gravado no histórico da ECM',
+                    category: 'Histórico ECM',
                     tip: 'Falha intermitente ou passada registrada pela central.',
                   };
 

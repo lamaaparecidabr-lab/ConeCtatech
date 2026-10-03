@@ -239,16 +239,17 @@ export class J1850Decoder {
     }
 
     // =========================================================================
-    // 3. HARLEY TEMPERATURA MOTOR (Frame A8 49 10 10 XX -> XX = graus Fahrenheit)
+    // 3. HARLEY TEMPERATURA MOTOR (Frame A8 49 10 10 XX -> °C = RAW - 40)
+    //    Validado em moto real contra DPID 0x12 em múltiplos pontos térmicos.
     // =========================================================================
     else if (cleanHex.startsWith('a8491010')) {
       const idx = 0;
       if (cleanHex.length >= idx + 10) {
         const hexByte = cleanHex.substr(idx + 8, 2);
-        const tempFahrenheit = parseInt(hexByte, 16);
-        if (!isNaN(tempFahrenheit)) {
-          telemetry.engineTempF = tempFahrenheit;
-          telemetry.engineTempC = Math.round(((tempFahrenheit - 32) * 5) / 9);
+        const rawTemp = parseInt(hexByte, 16);
+        if (!isNaN(rawTemp)) {
+          telemetry.engineTempC = rawTemp - 40;
+          telemetry.engineTempF = Math.round((telemetry.engineTempC * 9) / 5 + 32);
           packetLog = {
             id: Math.random().toString(36).substring(2, 9),
             timestamp: new Date().toLocaleTimeString(),
@@ -728,9 +729,31 @@ export class J1850Decoder {
       packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
         decoded: `[RESEARCH-TEST][DPID:0x1D][GENERIC-O2] O2F=${d[0]*20}mV | O2R=${d[1]*20}mV | IntegratorF=${(d[2]*0.78125).toFixed(2)}% | IntegratorR=${(d[3]*0.78125).toFixed(2)}% | LongTermF=${(d[4]*0.78125).toFixed(2)}% | LongTermR=${(d[5]*0.78125).toFixed(2)}% | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
     }
+    else if (cleanHex.startsWith('6cf1106a19') && bytes.length >= 11) {
+      const d = bytes.slice(5, 11);
+      const airTempC = d[0] - 16;
+      const chargeTempC = d[1] - 16;
+      const engineTempC = d[2] - 16;
+      const headTempC = d[3] - 16;
+      const tpsPct = d[4] * 0.45449999;
+      const tpsVolts = d[5] * 0.01953125;
+      packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
+        decoded: `[RESEARCH-STRONG][DPID:0x19] AirTemp=${airTempC}°C | ChargeTemp=${chargeTempC}°C | EngineTemp=${engineTempC}°C | HeadTemp=${headTempC}°C | TPS=${tpsPct.toFixed(1)}% | TPSVolts=${tpsVolts.toFixed(3)}V | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+    }
+    else if (cleanHex.startsWith('6cf1106a1b') && bytes.length >= 11) {
+      const d = bytes.slice(5, 11);
+      const rpm = (d[0] << 8) | d[1];
+      const runTimeRaw = d[2];
+      const baroKpa = d[3] * 0.368999988 + 10.35400009;
+      const syncRaw = d[4];
+      const vehicleSpeedRaw = d[5];
+      packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
+        decoded: `[RESEARCH-STRONG][DPID:0x1B] RPM=${rpm} | RunTimeRaw=${runTimeRaw} | Barometer=${baroKpa.toFixed(1)}kPa | SyncRaw=0x${syncRaw.toString(16).padStart(2,'0').toUpperCase()} | VehicleSpeedRaw=${vehicleSpeedRaw} | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+    }
+
     // Para os demais DPIDs J1850 catalogados, preservar os seis bytes integralmente
     // até validarmos na moto a variante/configuração exata e suas fórmulas.
-    else if (/^6cf1106a(14|15|19|1b|1c|1e|1f|20|21)/.test(cleanHex) && bytes.length >= 11) {
+    else if (/^6cf1106a(14|15|1c|1e|1f|20|21)/.test(cleanHex) && bytes.length >= 11) {
       const dpid = cleanHex.substring(8,10).toUpperCase();
       const d = bytes.slice(5, 11);
       packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
@@ -738,10 +761,12 @@ export class J1850Decoder {
     }
 
     // =========================================================================
-    // 11. HARLEY DTCs (Respostas 6C F1 10 59, 6C F1 40 59, 6C F1 60 59)
-    // Classificação validada nesta ECM pelo byte STATUS de cada registro:
-    // 0x11 = histórico | 0x13 = corrente.
-    // O nó de resposta NÃO determina se o DTC é histórico ou corrente.
+    // 11. HARLEY DTCs — status real J1850 legacy
+    // Frame positivo observado: 6C F1 <NODE> 59 <DTC_HI> <DTC_LO> <STATUS> <CRC>
+    // IMPORTANTE: 0x10/0x40/0x60 identificam o nó de origem, NÃO o estado do DTC.
+    // Para ECMs J1850 legacy (MEFI/VOODOO/FREEBIRD), a rotina Dtc_GetStatus do TTS usa:
+    //   bit 0x02 = Current; bit 0x10 = Historic; ambos = Current + Historic.
+    // O status fica preservado no log para auditoria. Exemplo real: P0562 0x11 -> 0x13.
     // =========================================================================
     else if (
       cleanHex.includes('6cf11059') ||
@@ -757,32 +782,25 @@ export class J1850Decoder {
       const frameHex = cleanHex.substring(idx);
       const frameBytes = this.hexStringToBytes(frameHex);
 
-      // Validação formal do CRC VPW Harley sobre o frame completo recebido.
       let hasValidCrc = false;
       if (frameBytes.length >= 5) {
         hasValidCrc = validateJ1850Crc(frameBytes) ||
           computeJ1850Crc(frameBytes.slice(0, -1)) === frameBytes[frameBytes.length - 1];
       }
 
-      // Remove somente CRC formalmente validado.
       const dataBytes = hasValidCrc
         ? frameBytes.slice(4, frameBytes.length - 1)
         : frameBytes.slice(4);
 
-      const parsedCodes: string[] = [];
-      const parsedStates: string[] = [];
+      const parsedEntries: string[] = [];
 
-      // Nos frames reais validados desta ECM cada registro é:
-      // DTC_H, DTC_L, STATUS. Exemplos:
-      // 05 62 11 = P0562 histórico
-      // 06 61 13 = P0661 corrente
-      // 14 75 13 = P1475 corrente
-      // 00 00 SS = terminador / nenhuma falha.
+      // Cada registro J1850 é DTC (2 bytes) + status (1 byte).
       for (let i = 0; i + 2 < dataBytes.length; i += 3) {
         const b0 = dataBytes[i];
         const b1 = dataBytes[i + 1];
         const status = dataBytes[i + 2];
 
+        // 0000 é terminador/ausência de DTC; o status ainda pode existir no frame.
         if ((b0 === 0 && b1 === 0) || (b0 === 0xff && b1 === 0xff)) continue;
 
         let prefix = 'P';
@@ -800,20 +818,21 @@ export class J1850Decoder {
         const fullCode = `${prefix}${digit1}${digit2}${digit3}${digit4}`.toUpperCase();
         if (!fullCode || fullCode === 'P0000') continue;
 
-        parsedCodes.push(fullCode);
+        // Máscaras confirmadas no TTS para as famílias J1850 legacy usadas neste caminho.
+        const isCurrent = (status & 0x02) === 0x02;
+        const isHistoric = (status & 0x10) === 0x10;
 
-        if (status === 0x11) {
-          this.historicDtcSet.add(fullCode);
-          this.activeDtcSet.delete(fullCode);
-          parsedStates.push(`${fullCode}=HISTÓRICO(0x11)`);
-        } else if (status === 0x13) {
-          this.activeDtcSet.add(fullCode);
-          this.historicDtcSet.delete(fullCode);
-          parsedStates.push(`${fullCode}=CORRENTE(0x13)`);
-        } else {
-          // Estado ainda não validado nesta ECM: preservar no log sem inferir categoria.
-          parsedStates.push(`${fullCode}=STATUS-0x${status.toString(16).padStart(2, '0').toUpperCase()}`);
-        }
+        if (isCurrent) this.activeDtcSet.add(fullCode);
+        if (isHistoric) this.historicDtcSet.add(fullCode);
+
+        const state = isCurrent && isHistoric
+          ? 'ATUAL+HISTÓRICO'
+          : isCurrent
+            ? 'ATUAL'
+            : isHistoric
+              ? 'HISTÓRICO'
+              : 'STATUS-NÃO-CLASSIFICADO';
+        parsedEntries.push(`${fullCode} [${state}; status=0x${status.toString(16).padStart(2, '0').toUpperCase()}]`);
       }
 
       telemetry.activeDtcList = Array.from(this.activeDtcSet);
@@ -826,7 +845,7 @@ export class J1850Decoder {
         type: 'rx',
         raw: originalLine,
         decoded: `Harley DTCs (Nó 0x${node}${hasValidCrc ? ' [CRC Válido]' : ''}): ${
-          parsedStates.length > 0 ? parsedStates.join(', ') : 'Nenhuma falha gravada [OK]'
+          parsedEntries.length > 0 ? parsedEntries.join(', ') : 'Nenhuma falha gravada [OK]'
         }`,
         tag: 'DTC',
       };
