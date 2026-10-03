@@ -591,6 +591,7 @@ export default function App() {
               onReadDTC={requisitarDadosFiltroDiag}
               onClearDTC={handleClearDTC}
               isConnected={isConnected}
+              activeDpidData={telemetry.activeDpidData}
             />
           </div>
         )}

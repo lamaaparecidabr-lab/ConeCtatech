@@ -1,3 +1,13 @@
+
+export interface ActiveDpidSnapshot {
+  dpid: string;
+  status: 'ok' | 'negative' | 'timeout' | 'pending' | 'unavailable';
+  raw?: string;
+  updatedAt?: number;
+  values?: Record<string, string | number>;
+  note?: string;
+}
+
 export interface TelemetryData {
   rpm: number;
   speedKmH: number;
@@ -38,6 +48,7 @@ export interface TelemetryData {
   fuelSystemStatus?: 'Closed-Loop' | 'Open-Loop' | 'Open-Loop (WOT)' | 'Open-Loop (Cold)';
   throttlePosition?: number; // 0% - 100%
   manifoldPressureKpa?: number; // MAP in kPa (e.g. 35 - 100)
+  activeDpidData?: Record<string, ActiveDpidSnapshot>;
   lastUpdated: number;
 }
 
