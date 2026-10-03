@@ -36,7 +36,9 @@ import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { VehicleIdentityCard } from './components/VehicleIdentityCard';
 import conectAutoMark from './assets/branding/conectauto-mark.png';
+import harleyBarShield from './assets/branding/harley-bar-shield.jpg';
 import { V2Dashboard } from './components/V2Dashboard';
+import { identifyHarleyVehicle } from './services/harleyVehicleIdentifier';
 
 
 type UiSkin = 'original' | 'orange' | 'dark';
@@ -267,6 +269,12 @@ export default function App() {
   };
 
   const isConnected = connectionType !== 'disconnected';
+  const vehicleIdentity = telemetry.vin ? identifyHarleyVehicle(telemetry.vin) : null;
+  const realVehicleIdentified = connectionType !== 'disconnected' && connectionType !== 'simulator' && Boolean(telemetry.vin);
+
+  const handleUpdateSimulator = (rpm: number, speed: number, gear: number | 'N') => {
+    connectionRef.current?.updateSimulatorInputs(rpm, speed, gear);
+  };
 
   return (
     <div className={`app-shell skin-${uiSkin} min-h-screen bg-[#0d0d0d] text-neutral-100 flex flex-col font-sans selection:bg-orange-500/30 overflow-x-hidden w-full max-w-full`}>
@@ -283,6 +291,30 @@ export default function App() {
                 <p className="v2-brand-subtitle">Diagnóstico · Monitoramento · Scanner</p>
               </div>
             </>
+          </div>
+
+          {/* Identificação contextual da motocicleta. O Bar & Shield real entra
+              somente quando uma moto real tiver sido identificada. */}
+          <div className={`v2-vehicle-id ${realVehicleIdentified ? 'identified' : connectionType === 'simulator' ? 'simulator' : 'waiting'}`}>
+            {realVehicleIdentified ? (
+              <>
+                <div className="v2-hd-logo-slot" aria-label="Harley-Davidson Bar & Shield"><img src={harleyBarShield} alt="Harley-Davidson" /></div>
+                <div className="v2-vehicle-copy">
+                  <span>Motocicleta identificada</span>
+                  <strong>{vehicleIdentity?.modelYear ? `${vehicleIdentity.modelYear} · ${vehicleIdentity.factoryModel || vehicleIdentity.commercialName || 'Harley-Davidson'}` : 'Harley-Davidson'}</strong>
+                </div>
+              </>
+            ) : connectionType === 'simulator' ? (
+              <div className="v2-vehicle-copy">
+                <span>Modo simulador</span>
+                <strong>Motocicleta simulada</strong>
+              </div>
+            ) : (
+              <div className="v2-vehicle-copy">
+                <span>Identificação da moto</span>
+                <strong>Identificando moto...</strong>
+              </div>
+            )}
           </div>
 
           {/* Right Action Icons & Connect Button */}
@@ -531,6 +563,18 @@ export default function App() {
             onOpenDiagnostics={() => setActiveTab('diagnostics')}
             onOpenDatalogger={() => setActiveTab('datalogger')}
           />
+          
+        )}
+
+        {activeTab === 'dashboard' && connectionType === 'simulator' && (
+          <div className="simulator-controls-wrap">
+          <SimulatorControls
+            currentRpm={Math.round(telemetry.rpm)}
+            currentSpeed={Math.round(telemetry.speedKmH)}
+            gear={telemetry.gear}
+            onUpdateValues={handleUpdateSimulator}
+          />
+          </div>
         )}
 
         {activeTab === 'diagnostics' && (

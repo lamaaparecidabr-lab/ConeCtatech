@@ -236,3 +236,17 @@
 .skin-dark .skin-wordmark span:nth-child(2){color:#ef1b24}
 @media(max-width:1050px){.v2-live-grid{grid-template-columns:1fr 1fr}.v2-compact-stack{grid-column:1/-1;grid-template-columns:repeat(3,1fr);grid-template-rows:none}.v2-metrics-row{grid-template-columns:repeat(2,1fr)}.v2-bottom-grid{grid-template-columns:1fr 1fr}.v2-data-panel{grid-column:1/-1}}
 @media(max-width:720px){.v2-live-grid{grid-template-columns:1fr;padding:12px}.v2-gauge{min-height:220px}.v2-gauge-ring{width:210px}.v2-compact-stack{grid-column:auto;grid-template-columns:1fr 1fr 1fr}.v2-compact-gauge{padding:12px}.v2-compact-gauge strong{font-size:1.1rem}.v2-metrics-row,.v2-bottom-grid{grid-template-columns:1fr}.v2-data-panel{grid-column:auto}.v2-metric-card{min-height:72px}.v2-brand-subtitle{display:none}}
+
+/* V2 — contextual motorcycle identification */
+.v2-vehicle-id{min-width:250px;max-width:410px;display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 14px;border:1px solid #292d33;border-radius:12px;background:#0d0f12}
+.v2-vehicle-copy{min-width:0;display:flex;flex-direction:column;gap:2px}
+.v2-vehicle-copy span{color:#777e87;font-size:.58rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
+.v2-vehicle-copy strong{color:#eef0f2;font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v2-vehicle-copy small{color:#737982;font-size:.62rem}
+.v2-vehicle-id.waiting strong{color:#a8adb4}.v2-vehicle-id.simulator{border-color:rgba(var(--skin-accent-rgb,255,102,0),.38)}
+.v2-hd-logo-slot{width:54px;height:42px;flex:none;display:grid;place-items:center}
+.v2-hd-logo-slot img{display:block;max-width:54px;max-height:42px;width:auto;height:auto;object-fit:contain}
+@media(max-width:900px){.v2-vehicle-id{display:none}}
+
+/* Keep the original, validated simulator controls visually separated from LIVE. */
+.v2-dashboard + .simulator-controls-wrap{margin-top:16px}
