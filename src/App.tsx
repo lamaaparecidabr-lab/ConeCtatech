@@ -35,8 +35,8 @@ import { DataloggerPanel } from './components/DataloggerPanel';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { VehicleIdentityCard } from './components/VehicleIdentityCard';
-import orangeVTwinLogo from './assets/orange-vtwin.png';
-import darkBaggerLogo from './assets/dark-bagger.png';
+import conectAutoMark from './assets/branding/conectauto-mark.png';
+import { V2Dashboard } from './components/V2Dashboard';
 
 
 type UiSkin = 'original' | 'orange' | 'dark';
@@ -276,28 +276,13 @@ export default function App() {
         <div className="app-header-main max-w-6xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
           {/* Logo & ConeCtaHarley Title */}
           <div className="app-brand flex items-center gap-2.5 sm:gap-3 min-w-0">
-            {uiSkin === 'original' ? (
-              <>
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-orange-600 to-amber-600 p-0.5 shadow-lg shadow-orange-600/30 flex items-center justify-center font-black text-white text-sm sm:text-base shrink-0">CH</div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <h1 className="font-extrabold tracking-tight text-lg sm:text-xl text-[#ff6600] truncate">ConeCtaHarley</h1>
-                    <span className="text-[9px] sm:text-[10px] font-mono text-orange-400 bg-orange-950/60 border border-orange-900/60 px-1 sm:px-1.5 py-0.5 rounded shrink-0">EFI</span>
-                  </div>
-                  <p className="text-[10px] sm:text-[11px] text-neutral-400 truncate hidden xs:block">Scanner & Painel Harley-Davidson</p>
-                </div>
-              </>
-            ) : uiSkin === 'orange' ? (
-              <>
-                <div className="skin-logo skin-logo-engine"><img src={orangeVTwinLogo} alt="" className="h-12 w-auto object-contain" /></div>
-                <div className="skin-wordmark normal-case"><span className="text-white">ConeCta</span><span className="text-[#ff6600]">Harley</span></div>
-              </>
-            ) : (
-              <>
-                <div className="skin-logo skin-logo-bike"><img src={darkBaggerLogo} alt="" className="h-11 w-auto object-contain" /></div>
-                <div className="skin-wordmark uppercase italic"><span className="text-white">CONECTA</span><span className="text-[#ef1b24]">HARLEY</span></div>
-              </>
-            )}
+            <>
+              <div className="skin-logo skin-logo-conectauto"><img src={conectAutoMark} alt="ConeCtaHarley" className="h-11 w-11 rounded-lg object-cover" /></div>
+              <div className="min-w-0">
+                <div className="skin-wordmark normal-case"><span className="text-white">ConeCta</span><span className={uiSkin === 'dark' ? 'text-[#ef1b24]' : 'text-[#ff6600]'}>Harley</span><span className="v2-badge">2.0</span></div>
+                <p className="v2-brand-subtitle">Diagnóstico · Monitoramento · Scanner</p>
+              </div>
+            </>
           </div>
 
           {/* Right Action Icons & Connect Button */}
@@ -538,137 +523,16 @@ export default function App() {
 
         {/* Tab 1: Dashboard View (id: tela-dashboard) */}
         {activeTab === 'dashboard' && (
-          <div id="tela-dashboard" className="space-y-6">
-            <VehicleIdentityCard
-              vin={telemetry.vin}
-              protocol={telemetry.vehicleProtocol}
-              isConnected={isConnected}
-            />
-
-            {/* Header controls for dashboard view style */}
-            <div className="flex items-center justify-between border-b border-neutral-800/80 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs uppercase tracking-wider font-bold text-neutral-400">
-                  Estilo dos Relógios:
-                </span>
-                <div className="flex items-center gap-1 bg-neutral-900 p-0.5 rounded-lg border border-neutral-800">
-                  <button
-                    onClick={() => setDashboardStyle('classic')}
-                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                      dashboardStyle === 'classic'
-                        ? 'bg-[#ff6600] text-white'
-                        : 'text-neutral-400 hover:text-neutral-200'
-                    }`}
-                  >
-                    Digital HD
-                  </button>
-                  <button
-                    onClick={() => setDashboardStyle('analog')}
-                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                      dashboardStyle === 'analog'
-                        ? 'bg-[#ff6600] text-white'
-                        : 'text-neutral-400 hover:text-neutral-200'
-                    }`}
-                  >
-                    Ponteiros Analógicos
-                  </button>
-                </div>
-              </div>
-
-              <div className="text-xs text-neutral-400 hidden sm:block">
-                Dica: Clique no ícone da injeção no topo para abrir o scanner
-              </div>
-            </div>
-
-            {/* Tell-Tale Indicators Bar */}
-            <IndicatorsBar
-              turnLeft={telemetry.turnLeft}
-              turnRight={telemetry.turnRight}
-              neutral={telemetry.neutral}
-              batteryWarning={(telemetry.elmSupplyVoltage ?? 0) < 12.2 && (telemetry.elmSupplyVoltage ?? 0) > 0}
-              oilWarning={telemetry.oilWarning}
-              checkEngine={telemetry.checkEngine}
-              highBeam={telemetry.highBeam}
-            />
-
-            {/* Gauges Grid according to selected style */}
-            {dashboardStyle === 'classic' ? (
-              <ClassicGaugeCluster
-                rpm={telemetry.rpm}
-                speed={config.speedUnit === 'kmh' ? telemetry.speedKmH : telemetry.speedMph}
-                speedUnit={config.speedUnit}
-                gear={telemetry.gear}
-                odometerKm={telemetry.odometerKm}
-                onToggleSpeedUnit={() =>
-                  setConfig((prev) => ({
-                    ...prev,
-                    speedUnit: prev.speedUnit === 'kmh' ? 'mph' : 'kmh',
-                  }))
-                }
-              />
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl mx-auto">
-                <GaugeTachometer rpm={telemetry.rpm} maxRpm={7000} />
-                <GaugeSpeedometer
-                  speedKmH={telemetry.speedKmH}
-                  speedMph={telemetry.speedMph}
-                  unit={config.speedUnit}
-                  gear={telemetry.gear}
-                  odometerKm={telemetry.odometerKm}
-                  onToggleUnit={() =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      speedUnit: prev.speedUnit === 'kmh' ? 'mph' : 'kmh',
-                    }))
-                  }
-                />
-              </div>
-            )}
-
-            {/* Secondary Engine Metrics (Temp, Battery, Gear) */}
-            <EngineMetrics
-              engineTempC={telemetry.engineTempC}
-              engineTempF={telemetry.engineTempF}
-              batteryVoltage={telemetry.batteryVoltage}
-              elmSupplyVoltage={telemetry.elmSupplyVoltage}
-              gear={telemetry.gear}
-              tempUnit={config.tempUnit}
-              onToggleTempUnit={() =>
-                setConfig((prev) => ({
-                  ...prev,
-                  tempUnit: prev.tempUnit === 'celsius' ? 'fahrenheit' : 'celsius',
-                }))
-              }
-              packetRate={isConnected ? 14 : 0}
-            />
-
-            {/* Simulator Controls if in Simulator Mode */}
-            {connectionType === 'simulator' && (
-              <SimulatorControls
-                currentRpm={telemetry.rpm}
-                currentSpeed={telemetry.speedKmH}
-                gear={telemetry.gear}
-                onUpdateValues={(rpm, speed, gear) => {
-                  if (connectionRef.current) {
-                    connectionRef.current.updateSimulatorInputs(rpm, speed, gear);
-                  }
-                }}
-              />
-            )}
-
-            {/* Terminal Sniffer Log at bottom of dashboard */}
-            <div className="w-full max-w-4xl mx-auto">
-              <TerminalConsole
-                logs={logs}
-                onSendCommand={handleSendCommand}
-                onClearLogs={() => setLogs([])}
-                isConnected={isConnected}
-              />
-            </div>
-          </div>
+          <V2Dashboard
+            telemetry={telemetry}
+            connectionType={connectionType}
+            speedUnit={config.speedUnit}
+            tempUnit={config.tempUnit}
+            onOpenDiagnostics={() => setActiveTab('diagnostics')}
+            onOpenDatalogger={() => setActiveTab('datalogger')}
+          />
         )}
 
-        {/* Tab 2: Diagnostics & DTCs (id: tela-diagnostico) */}
         {activeTab === 'diagnostics' && (
           <div id="tela-diagnostico">
             <DiagnosticsPanel
