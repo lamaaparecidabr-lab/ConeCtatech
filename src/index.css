@@ -250,3 +250,30 @@
 
 /* Keep the original, validated simulator controls visually separated from LIVE. */
 .v2-dashboard + .simulator-controls-wrap{margin-top:16px}
+
+/* V2 Stage 3 — preserva integralmente a identificação funcional da V1.
+   A única adição é o Bar & Shield ao lado do mesmo VehicleIdentityCard. */
+.v2-vehicle-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.v2-vehicle-identity-original {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.v2-vehicle-identity-original > div {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+.v2-vehicle-identity-original .truncate {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.v2-hd-logo-slot {
+  flex: 0 0 auto;
+}

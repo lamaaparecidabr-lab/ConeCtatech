@@ -299,20 +299,18 @@ export default function App() {
           {/* Identificação contextual da motocicleta.
               No simulador, o VIN genérico percorre o mesmo identificador da moto real. */}
           <div className={`v2-vehicle-id ${vehicleIdentified ? 'identified' : 'waiting'}`}>
-            {vehicleIdentified ? (
-              <>
-                <div className="v2-hd-logo-slot" aria-label="Harley-Davidson Bar & Shield"><img src={harleyBarShield} alt="Harley-Davidson" /></div>
-                <div className="v2-vehicle-copy">
-                  <span>Motocicleta identificada</span>
-                  <strong>{vehicleIdentity?.modelYear ? `${vehicleIdentity.modelYear} · ${vehicleIdentity.factoryModel || vehicleIdentity.commercialName || 'Harley-Davidson'}` : 'Harley-Davidson'}</strong>
-                </div>
-              </>
-            ) : (
-              <div className="v2-vehicle-copy">
-                <span>Identificação da moto</span>
-                <strong>Identificando moto...</strong>
+            {vehicleIdentified && (
+              <div className="v2-hd-logo-slot" aria-label="Harley-Davidson Bar & Shield">
+                <img src={harleyBarShield} alt="Harley-Davidson" />
               </div>
             )}
+            <div className="v2-vehicle-identity-original">
+              <VehicleIdentityCard
+                vin={telemetry.vin}
+                protocol={config.protocol === 'ATSP2' ? 'J1850 VPW' : undefined}
+                isConnected={isConnected}
+              />
+            </div>
           </div>
 
           {/* Right Action Icons & Connect Button */}
