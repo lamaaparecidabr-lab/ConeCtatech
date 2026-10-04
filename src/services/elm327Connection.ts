@@ -339,6 +339,47 @@ export class ELM327Connection {
             };
             allDiscoveredChars.push(item);
 
+            // V3 BLE AUDIT2 — leitura SOMENTE-LEITURA do Device Information Service (0x180A).
+            // Objetivo: identificar fabricante/modelo/firmware/hardware expostos pelo módulo BLE.
+            // Não escreve em nenhuma characteristic e não altera seleção TX/RX, Notify, COM ou J1850.
+            if (service.uuid.toLowerCase() === '0000180a-0000-1000-8000-00805f9b34fb' && item.properties.read) {
+              const disLabels: Record<string, string> = {
+                '00002a29-0000-1000-8000-00805f9b34fb': 'Manufacturer Name',
+                '00002a24-0000-1000-8000-00805f9b34fb': 'Model Number',
+                '00002a25-0000-1000-8000-00805f9b34fb': 'Serial Number',
+                '00002a26-0000-1000-8000-00805f9b34fb': 'Firmware Revision',
+                '00002a27-0000-1000-8000-00805f9b34fb': 'Hardware Revision',
+                '00002a28-0000-1000-8000-00805f9b34fb': 'Software Revision',
+                '00002a23-0000-1000-8000-00805f9b34fb': 'System ID',
+                '00002a2a-0000-1000-8000-00805f9b34fb': 'IEEE 11073-20601 Regulatory Certification Data List',
+              };
+              try {
+                const value = await char.readValue();
+                const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+                const hex = Array.from(bytes).map((b) => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+                let text = '';
+                try { text = new TextDecoder('utf-8').decode(bytes).replace(/\0/g, '').trim(); } catch {}
+                const label = disLabels[char.uuid.toLowerCase()] || char.uuid;
+                this.onPacketLog({
+                  id: Math.random().toString(36).substring(2, 9),
+                  timestamp: new Date().toLocaleTimeString(),
+                  type: 'info',
+                  raw: `BLE_DIS_READ: ${char.uuid}`,
+                  decoded: `[BLE-DIS] ${label} | TEXT: ${text || '—'} | HEX: ${hex || '—'}`,
+                  tag: 'AT',
+                });
+              } catch (readErr: any) {
+                this.onPacketLog({
+                  id: Math.random().toString(36).substring(2, 9),
+                  timestamp: new Date().toLocaleTimeString(),
+                  type: 'info',
+                  raw: `BLE_DIS_READ_FAIL: ${char.uuid}`,
+                  decoded: `[BLE-DIS] Falha ao ler ${disLabels[char.uuid.toLowerCase()] || char.uuid}: ${readErr?.message || readErr}`,
+                  tag: 'AT',
+                });
+              }
+            }
+
             // [BLE-GATT] Log individual de auditoria
             this.onPacketLog({
               id: Math.random().toString(36).substring(2, 9),
