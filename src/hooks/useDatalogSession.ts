@@ -30,7 +30,19 @@ export function useDatalogSession(telemetry: TelemetryData) {
   const startedAt = useRef<number>();
   const lastDpid1DAt = useRef<number>();
 
-  const startRecording = useCallback(() => {
+  // NOVA SESSÃO sempre começa com buffer e cronômetro zerados. A BASE é independente
+  // e nunca é apagada aqui. Também marcamos o snapshot 0x1D atual como já visto para
+  // impedir que uma leitura anterior ao início seja contabilizada na nova sessão.
+  const startNewSession = useCallback(() => {
+    setRecording(false);
+    setSamples([]);
+    startedAt.current = Date.now();
+    lastDpid1DAt.current = telemetry.activeDpidData?.['1D']?.updatedAt;
+    setRecording(true);
+  }, [telemetry.activeDpidData]);
+
+  // CONTINUAR retoma exatamente a sessão pausada, sem limpar amostras nem BASE.
+  const resumeRecording = useCallback(() => {
     if (!startedAt.current) startedAt.current = Date.now();
     setRecording(true);
   }, []);
@@ -92,5 +104,5 @@ export function useDatalogSession(telemetry: TelemetryData) {
     try { localStorage.removeItem(BASE_KEY); } catch { /* noop */ }
   }, []);
 
-  return { recording, samples, base, startRecording, pauseRecording, clearCurrent, saveAsBase, clearBase };
+  return { recording, samples, base, startNewSession, resumeRecording, pauseRecording, clearCurrent, saveAsBase, clearBase };
 }
