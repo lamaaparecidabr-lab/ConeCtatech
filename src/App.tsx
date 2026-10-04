@@ -675,7 +675,7 @@ export default function App() {
 
         {/* Tab 5: Datalogger & Telemetria CSV */}
         {activeTab === 'datalogger' && (
-          <DataloggerPanel telemetry={telemetry} logs={logs} recording={datalog.recording} samples={datalog.samples} base={datalog.base} onStart={datalog.startRecording} onPause={datalog.pauseRecording} onClear={datalog.clearCurrent} onSaveBase={()=>datalog.saveAsBase()} onClearBase={datalog.clearBase} />
+          <DataloggerPanel telemetry={telemetry} logs={logs} recording={datalog.recording} samples={datalog.samples} base={datalog.base} onNewSession={datalog.startNewSession} onResume={datalog.resumeRecording} onPause={datalog.pauseRecording} onClear={datalog.clearCurrent} onSaveBase={()=>datalog.saveAsBase()} onClearBase={datalog.clearBase} />
         )}
 
         {/* Tab 6: Terminal & Sniffer Full View */}
