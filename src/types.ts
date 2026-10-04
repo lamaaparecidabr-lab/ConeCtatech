@@ -6,8 +6,8 @@ export interface ActiveDpidSnapshot {
   updatedAt?: number;
   values?: Record<string, string | number>;
   note?: string;
-  catalogSource?: 'TTS/DataMaster' | 'Real-bike validation' | 'Unknown';
-  validation?: 'TTS_MAPPED' | 'TTS_REAL_VALIDATED' | 'DETECTED_UNMAPPED' | 'UNSUPPORTED' | 'UNKNOWN';
+  catalogSource?: 'catálogo técnico de referência' | 'Real-bike validation' | 'Unknown';
+  validation?: 'REFERENCE_MAPPED' | 'REAL_VALIDATED' | 'DETECTED_UNMAPPED' | 'UNSUPPORTED' | 'UNKNOWN';
   dataStreams?: string[];
 }
 
