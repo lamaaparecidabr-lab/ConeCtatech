@@ -209,22 +209,65 @@ export class ELM327Connection {
       tag: 'AT',
     });
 
-    if (useWithResponse) {
-      if (typeof char.writeValueWithResponse === 'function') {
+    // V3 BLE FIX2 — instrumentação estritamente BLE.
+    // Não altera o método de escrita escolhido nem qualquer caminho Serial/COM.
+    let writeApi = '';
+    try {
+      if (useWithResponse) {
+        if (typeof char.writeValueWithResponse === 'function') {
+          writeApi = 'writeValueWithResponse';
+        } else if (typeof char.writeValue === 'function') {
+          writeApi = 'writeValue';
+        } else {
+          throw new Error('Canal Bluetooth não aceita gravação de dados com resposta.');
+        }
+      } else {
+        if (typeof char.writeValueWithoutResponse === 'function') {
+          writeApi = 'writeValueWithoutResponse';
+        } else if (typeof char.writeValue === 'function') {
+          writeApi = 'writeValue';
+        } else {
+          throw new Error('Canal Bluetooth não aceita gravação de dados sem resposta.');
+        }
+      }
+
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'info',
+        raw: `BLE_WRITE_REQUEST:${writeApi}`,
+        decoded: `[BLE-WRITE-REQUEST] API=${writeApi} | HEX=${hexStr} | ASCII=${asciiStr}`,
+        tag: 'AT',
+      });
+
+      const startedAt = Date.now();
+
+      if (writeApi === 'writeValueWithResponse') {
         await char.writeValueWithResponse(data);
-      } else if (typeof char.writeValue === 'function') {
-        await char.writeValue(data);
-      } else {
-        throw new Error('Canal Bluetooth não aceita gravação de dados com resposta.');
-      }
-    } else {
-      if (typeof char.writeValueWithoutResponse === 'function') {
+      } else if (writeApi === 'writeValueWithoutResponse') {
         await char.writeValueWithoutResponse(data);
-      } else if (typeof char.writeValue === 'function') {
-        await char.writeValue(data);
       } else {
-        throw new Error('Canal Bluetooth não aceita gravação de dados sem resposta.');
+        await char.writeValue(data);
       }
+
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'info',
+        raw: `BLE_WRITE_RESOLVED:${writeApi}`,
+        decoded: `[BLE-WRITE-RESOLVED] API=${writeApi} | ${Date.now() - startedAt}ms | Promise de escrita GATT concluída.`,
+        tag: 'AT',
+      });
+    } catch (err: any) {
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'error',
+        raw: `BLE_WRITE_REJECTED:${writeApi || 'none'}`,
+        decoded: `[BLE-WRITE-REJECTED] API=${writeApi || 'nenhuma'} | ${err?.name || 'Error'}: ${err?.message || err}`,
+        tag: 'AT',
+      });
+      throw err;
     }
   }
 
