@@ -1,0 +1,1812 @@
+{
+  "source": "TTS.HD.HD-DatastreamConfig.enc",
+  "counts": {
+    "pidBase": 391,
+    "dpidToPid": 675,
+    "datastreamDefinitions": 17,
+    "dsToDpidMappings": 73,
+    "osMappings": 71
+  },
+  "j1850Streams": [
+    {
+      "number": 0,
+      "name": "Generic Data",
+      "protocol": "J1850_ALL",
+      "factoryOnly": false,
+      "dpids": [
+        "11",
+        "12",
+        "15",
+        "16",
+        "17",
+        "18",
+        "1B",
+        "13",
+        "19"
+      ]
+    },
+    {
+      "number": 1,
+      "name": "VTune-3 Open Loop Data",
+      "protocol": "J1850_ALL",
+      "factoryOnly": false,
+      "dpids": [
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "1A",
+        "1B"
+      ]
+    },
+    {
+      "number": 2,
+      "name": "Dyno Data",
+      "protocol": "J1850_ALL",
+      "factoryOnly": false,
+      "dpids": [
+        "1B",
+        "12",
+        "17"
+      ]
+    },
+    {
+      "number": 3,
+      "name": "Generic O2 Data",
+      "protocol": "J1850_O2",
+      "factoryOnly": false,
+      "dpids": [
+        "11",
+        "12",
+        "15",
+        "16",
+        "17",
+        "18",
+        "1B",
+        "13",
+        "1D",
+        "19"
+      ]
+    },
+    {
+      "number": 4,
+      "name": "Destroyer Data",
+      "protocol": "J1850_ALL",
+      "factoryOnly": true,
+      "dpids": [
+        "11",
+        "12",
+        "13",
+        "16",
+        "1B"
+      ]
+    },
+    {
+      "number": 5,
+      "name": "DBW Data",
+      "protocol": "J1850_DBW",
+      "factoryOnly": false,
+      "dpids": [
+        "11",
+        "12",
+        "15",
+        "16",
+        "17",
+        "18",
+        "1B",
+        "13",
+        "1D",
+        "1F",
+        "20"
+      ]
+    },
+    {
+      "number": 6,
+      "name": "VTune Data",
+      "protocol": "J1850_O2",
+      "factoryOnly": false,
+      "dpids": [
+        "11",
+        "12",
+        "15",
+        "16",
+        "17",
+        "18",
+        "1C",
+        "1D",
+        "1A"
+      ]
+    },
+    {
+      "number": 7,
+      "name": "Spark Data",
+      "protocol": "J1850_ALL",
+      "factoryOnly": false,
+      "dpids": [
+        "11",
+        "13",
+        "19"
+      ]
+    },
+    {
+      "number": 8,
+      "name": "CamTune Data",
+      "protocol": "J1850_TTS",
+      "factoryOnly": true,
+      "dpids": [
+        "00",
+        "01",
+        "02",
+        "03",
+        "04",
+        "05"
+      ]
+    }
+  ],
+  "dpidPids": [
+    {
+      "dpid": "11",
+      "pid": "2001",
+      "order": 0,
+      "name": "Engine Speed",
+      "size": 2,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "RPM",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "RPM",
+      "comments": "Engine Speed"
+    },
+    {
+      "dpid": "11",
+      "pid": "2002",
+      "order": 1,
+      "name": "Desired Idle",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 8.0,
+      "metricOffset": 0.0,
+      "metricUnits": "RPM",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "RPM",
+      "comments": "Desired Idle"
+    },
+    {
+      "dpid": "11",
+      "pid": "2003",
+      "order": 2,
+      "name": "Battery Volts",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.100000001,
+      "metricOffset": 0.0,
+      "metricUnits": "V",
+      "englishGain": 0.100000001,
+      "englishOffset": 0.0,
+      "englishUnits": "V",
+      "comments": "Battery Voltage"
+    },
+    {
+      "dpid": "11",
+      "pid": "2004",
+      "order": 3,
+      "name": "MAP",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.368999988,
+      "metricOffset": 10.35400009,
+      "metricUnits": "kPa",
+      "englishGain": 0.108970001,
+      "englishOffset": 3.057499886,
+      "englishUnits": "Hg",
+      "comments": "Manifold Absolute Pressure"
+    },
+    {
+      "dpid": "11",
+      "pid": "2005",
+      "order": 4,
+      "name": "TPS %",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.45449999,
+      "metricOffset": 0.0,
+      "metricUnits": "Pct",
+      "englishGain": 0.45449999,
+      "englishOffset": 0.0,
+      "englishUnits": "Pct",
+      "comments": "Throttle Position Percent"
+    },
+    {
+      "dpid": "12",
+      "pid": "2006",
+      "order": 0,
+      "name": "Engine Temp",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": -16.0,
+      "metricUnits": "C",
+      "englishGain": 1.799999952,
+      "englishOffset": 3.200000048,
+      "englishUnits": "F",
+      "comments": "Engine Temperature"
+    },
+    {
+      "dpid": "12",
+      "pid": "2007",
+      "order": 1,
+      "name": "Intake Air Temp",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": -16.0,
+      "metricUnits": "C",
+      "englishGain": 1.799999952,
+      "englishOffset": 3.200000048,
+      "englishUnits": "F",
+      "comments": "Intake Air Temperature"
+    },
+    {
+      "dpid": "12",
+      "pid": "2008",
+      "order": 2,
+      "name": "ET Sensor Volts",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.01953125,
+      "metricOffset": 0.0,
+      "metricUnits": "V",
+      "englishGain": 0.01953125,
+      "englishOffset": 0.0,
+      "englishUnits": "V",
+      "comments": "Engine Temp Sensor Voltage"
+    },
+    {
+      "dpid": "12",
+      "pid": "2009",
+      "order": 3,
+      "name": "IAT Sensor Volts",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.01953125,
+      "metricOffset": 0.0,
+      "metricUnits": "V",
+      "englishGain": 0.01953125,
+      "englishOffset": 0.0,
+      "englishUnits": "V",
+      "comments": "Intake Temp Sensor Voltage"
+    },
+    {
+      "dpid": "12",
+      "pid": "200A",
+      "order": 4,
+      "name": "MAP Sensor Volts",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.01953125,
+      "metricOffset": 0.0,
+      "metricUnits": "V",
+      "englishGain": 0.01953125,
+      "englishOffset": 0.0,
+      "englishUnits": "V",
+      "comments": "MAP Sensor Voltage"
+    },
+    {
+      "dpid": "12",
+      "pid": "200B",
+      "order": 5,
+      "name": "TPS Volts",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.01953125,
+      "metricOffset": 0.0,
+      "metricUnits": "V",
+      "englishGain": 0.01953125,
+      "englishOffset": 0.0,
+      "englishUnits": "V",
+      "comments": "TPS Sensor Voltage"
+    },
+    {
+      "dpid": "13",
+      "pid": "200C",
+      "order": 0,
+      "name": "Spark Adv Front",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.5,
+      "metricOffset": 0.0,
+      "metricUnits": "Deg",
+      "englishGain": 0.5,
+      "englishOffset": 0.0,
+      "englishUnits": "Deg",
+      "comments": "Low Resolution Front Cylinder Spark Advance"
+    },
+    {
+      "dpid": "13",
+      "pid": "200D",
+      "order": 1,
+      "name": "Spark Adv Rear",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.5,
+      "metricOffset": 0.0,
+      "metricUnits": "Deg",
+      "englishGain": 0.5,
+      "englishOffset": 0.0,
+      "englishUnits": "Deg",
+      "comments": "Low Resolution Rear Cylinder Spark Advance"
+    },
+    {
+      "dpid": "13",
+      "pid": "200E",
+      "order": 2,
+      "name": "Knock Retard Front (Fast)",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.5,
+      "metricOffset": 0.0,
+      "metricUnits": "Deg",
+      "englishGain": 0.5,
+      "englishOffset": 0.0,
+      "englishUnits": "Deg",
+      "comments": "Front Cylinder Knock Retard, Fast Control"
+    },
+    {
+      "dpid": "13",
+      "pid": "200F",
+      "order": 3,
+      "name": "Knock Retard Rear (Fast)",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.5,
+      "metricOffset": 0.0,
+      "metricUnits": "Deg",
+      "englishGain": 0.5,
+      "englishOffset": 0.0,
+      "englishUnits": "Deg",
+      "comments": "Rear Cylinder Knock Retard, Fast Control"
+    },
+    {
+      "dpid": "13",
+      "pid": "2010",
+      "order": 4,
+      "name": "IAC Position",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "Cnt",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Cnt",
+      "comments": "IAC Position"
+    },
+    {
+      "dpid": "13",
+      "pid": "3000",
+      "order": 5,
+      "name": "Engine Flag 1",
+      "size": 1,
+      "endian": 1,
+      "metricGain": null,
+      "metricOffset": null,
+      "metricUnits": null,
+      "englishGain": null,
+      "englishOffset": null,
+      "englishUnits": null,
+      "comments": "Engine Flag 1"
+    },
+    {
+      "dpid": "14",
+      "pid": "2011",
+      "order": 0,
+      "name": "Injector Front",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.125,
+      "metricOffset": 0.0,
+      "metricUnits": "mS",
+      "englishGain": 0.125,
+      "englishOffset": 0.0,
+      "englishUnits": "mS",
+      "comments": "Front Inj H/W On Time"
+    },
+    {
+      "dpid": "14",
+      "pid": "2012",
+      "order": 1,
+      "name": "Injector Rear",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.125,
+      "metricOffset": 0.0,
+      "metricUnits": "mS",
+      "englishGain": 0.125,
+      "englishOffset": 0.0,
+      "englishUnits": "mS",
+      "comments": "Rear Inj H/W On Time"
+    },
+    {
+      "dpid": "14",
+      "pid": "2013",
+      "order": 2,
+      "name": "Purge Sol DC",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.390599996,
+      "metricOffset": 0.0,
+      "metricUnits": "Pct",
+      "englishGain": 0.390599996,
+      "englishOffset": 0.0,
+      "englishUnits": "Pct",
+      "comments": "Purge Solonoid Duty Cycle"
+    },
+    {
+      "dpid": "14",
+      "pid": "2014",
+      "order": 3,
+      "name": "O2 Volts",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 19.53125,
+      "metricOffset": 0.0,
+      "metricUnits": "mV",
+      "englishGain": 19.53125,
+      "englishOffset": 0.0,
+      "englishUnits": "mV",
+      "comments": "O2 Sensor A mV"
+    },
+    {
+      "dpid": "14",
+      "pid": "2015",
+      "order": 4,
+      "name": "Fuel Trim",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.78125,
+      "metricOffset": 0.0,
+      "metricUnits": "Pct",
+      "englishGain": 0.78125,
+      "englishOffset": 0.0,
+      "englishUnits": "Pct",
+      "comments": "Closed Loop Fuel Correction Factor"
+    },
+    {
+      "dpid": "14",
+      "pid": "2016",
+      "order": 5,
+      "name": "Vehicle Speed",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "KPH",
+      "englishGain": 0.621100008,
+      "englishOffset": 0.0,
+      "englishUnits": "MPH",
+      "comments": "Filtered Vehicle Speed"
+    },
+    {
+      "dpid": "15",
+      "pid": "2017",
+      "order": 0,
+      "name": "AFR Desired",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.100000001,
+      "metricOffset": 0.0,
+      "metricUnits": "Ratio",
+      "englishGain": 0.100000001,
+      "englishOffset": 0.0,
+      "englishUnits": "Ratio",
+      "comments": "A/F Desired"
+    },
+    {
+      "dpid": "15",
+      "pid": "2018",
+      "order": 1,
+      "name": "AF Feedback Front",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.100000001,
+      "metricOffset": 0.0,
+      "metricUnits": "Ratio",
+      "englishGain": 0.100000001,
+      "englishOffset": 0.0,
+      "englishUnits": "Ratio",
+      "comments": "A/F Feedback Front Cyl"
+    },
+    {
+      "dpid": "15",
+      "pid": "2019",
+      "order": 2,
+      "name": "AF Feedback Rear",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.100000001,
+      "metricOffset": 0.0,
+      "metricUnits": "Ratio",
+      "englishGain": 0.100000001,
+      "englishOffset": 0.0,
+      "englishUnits": "Ratio",
+      "comments": "A/F Feedback Rear CYl"
+    },
+    {
+      "dpid": "15",
+      "pid": "201A",
+      "order": 3,
+      "name": "MAP",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.368999988,
+      "metricOffset": 10.35400009,
+      "metricUnits": "kPa",
+      "englishGain": 0.108970001,
+      "englishOffset": 3.057499886,
+      "englishUnits": "Hg",
+      "comments": "Manifold Absolute Pressure"
+    },
+    {
+      "dpid": "15",
+      "pid": "201B",
+      "order": 4,
+      "name": "MAP Default",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.368999988,
+      "metricOffset": 10.35400009,
+      "metricUnits": "kPa",
+      "englishGain": 0.108970001,
+      "englishOffset": 3.057499886,
+      "englishUnits": "Hg",
+      "comments": "Manifold Pressure Default"
+    },
+    {
+      "dpid": "15",
+      "pid": "201C",
+      "order": 5,
+      "name": "MAP Read 2",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.368999988,
+      "metricOffset": 10.35400009,
+      "metricUnits": "kPa",
+      "englishGain": 0.108970001,
+      "englishOffset": 3.057499886,
+      "englishUnits": "Hg",
+      "comments": "MAP Read 2"
+    },
+    {
+      "dpid": "16",
+      "pid": "201D",
+      "order": 0,
+      "name": "Accel Enrichment",
+      "size": 2,
+      "endian": 1,
+      "metricGain": 0.004,
+      "metricOffset": 0.0,
+      "metricUnits": "mS",
+      "englishGain": 0.004,
+      "englishOffset": 0.0,
+      "englishUnits": "mS",
+      "comments": "Acceleration Fuel Enrichment"
+    },
+    {
+      "dpid": "16",
+      "pid": "201E",
+      "order": 1,
+      "name": "Injector BPW Front",
+      "size": 2,
+      "endian": 1,
+      "metricGain": 0.004,
+      "metricOffset": 0.0,
+      "metricUnits": "mS",
+      "englishGain": 0.004,
+      "englishOffset": 0.0,
+      "englishUnits": "mS",
+      "comments": "Injector BPW Front Cylindar"
+    },
+    {
+      "dpid": "16",
+      "pid": "201F",
+      "order": 2,
+      "name": "Injector BPW Rear",
+      "size": 2,
+      "endian": 1,
+      "metricGain": 0.004,
+      "metricOffset": 0.0,
+      "metricUnits": "mS",
+      "englishGain": 0.004,
+      "englishOffset": 0.0,
+      "englishUnits": "mS",
+      "comments": "Injector BPW Rear Cylinder"
+    },
+    {
+      "dpid": "17",
+      "pid": "2020",
+      "order": 0,
+      "name": "Decel Enleanment",
+      "size": 2,
+      "endian": 1,
+      "metricGain": 0.004,
+      "metricOffset": 0.0,
+      "metricUnits": "mS",
+      "englishGain": 0.004,
+      "englishOffset": 0.0,
+      "englishUnits": "mS",
+      "comments": "Decel Fuel Enleanment"
+    },
+    {
+      "dpid": "17",
+      "pid": "2021",
+      "order": 1,
+      "name": "Spark Adv Front",
+      "size": 2,
+      "endian": 1,
+      "metricGain": 0.25,
+      "metricOffset": 0.0,
+      "metricUnits": "Deg",
+      "englishGain": 0.25,
+      "englishOffset": 0.0,
+      "englishUnits": "Deg",
+      "comments": "High-res Spark Advance Front Cylinder"
+    },
+    {
+      "dpid": "17",
+      "pid": "2022",
+      "order": 2,
+      "name": "Spark Adv Rear",
+      "size": 2,
+      "endian": 1,
+      "metricGain": 0.25,
+      "metricOffset": 0.0,
+      "metricUnits": "Deg",
+      "englishGain": 0.25,
+      "englishOffset": 0.0,
+      "englishUnits": "Deg",
+      "comments": "High-res Spark Advance Rear Cylinder"
+    },
+    {
+      "dpid": "18",
+      "pid": "2023",
+      "order": 0,
+      "name": "VE Front",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.5,
+      "metricOffset": 0.0,
+      "metricUnits": "Pct",
+      "englishGain": 0.5,
+      "englishOffset": 0.0,
+      "englishUnits": "Pct",
+      "comments": "Volumetric Efficiency Front Cylinder"
+    },
+    {
+      "dpid": "18",
+      "pid": "2024",
+      "order": 1,
+      "name": "VE Rear",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.5,
+      "metricOffset": 0.0,
+      "metricUnits": "Pct",
+      "englishGain": 0.5,
+      "englishOffset": 0.0,
+      "englishUnits": "Pct",
+      "comments": "Volumetric Efficiency Rear Cylinder"
+    },
+    {
+      "dpid": "18",
+      "pid": "2025",
+      "order": 2,
+      "name": "VE New Front",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.5,
+      "metricOffset": 0.0,
+      "metricUnits": "Pct",
+      "englishGain": 0.5,
+      "englishOffset": 0.0,
+      "englishUnits": "Pct",
+      "comments": "New Volumetric Efficiency Front Cylinder"
+    },
+    {
+      "dpid": "18",
+      "pid": "2026",
+      "order": 3,
+      "name": "VE New Rear",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.5,
+      "metricOffset": 0.0,
+      "metricUnits": "Pct",
+      "englishGain": 0.5,
+      "englishOffset": 0.0,
+      "englishUnits": "Pct",
+      "comments": "New Volumetric Efficiency Rear Cylinder"
+    },
+    {
+      "dpid": "18",
+      "pid": "2027",
+      "order": 4,
+      "name": "Warm Up AFR",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.100000001,
+      "metricOffset": 0.0,
+      "metricUnits": "Ratio",
+      "englishGain": 0.100000001,
+      "englishOffset": 0.0,
+      "englishUnits": "Ratio",
+      "comments": "Warm-up Fuel Enrichment"
+    },
+    {
+      "dpid": "18",
+      "pid": "2028",
+      "order": 5,
+      "name": "IAC Position",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "Cnt",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Cnt",
+      "comments": "IAC Position"
+    },
+    {
+      "dpid": "19",
+      "pid": "2029",
+      "order": 0,
+      "name": "Air Temp",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": -16.0,
+      "metricUnits": "C",
+      "englishGain": 1.799999952,
+      "englishOffset": 3.200000048,
+      "englishUnits": "F",
+      "comments": "Air Temperature"
+    },
+    {
+      "dpid": "19",
+      "pid": "202A",
+      "order": 1,
+      "name": "Charge Temp",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": -16.0,
+      "metricUnits": "C",
+      "englishGain": 1.799999952,
+      "englishOffset": 3.200000048,
+      "englishUnits": "F",
+      "comments": "Charge Temperature"
+    },
+    {
+      "dpid": "19",
+      "pid": "202B",
+      "order": 2,
+      "name": "Engine Temp",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": -16.0,
+      "metricUnits": "C",
+      "englishGain": 1.799999952,
+      "englishOffset": 3.200000048,
+      "englishUnits": "F",
+      "comments": "Engine Temperature"
+    },
+    {
+      "dpid": "19",
+      "pid": "202C",
+      "order": 3,
+      "name": "Head Temp",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": -16.0,
+      "metricUnits": "C",
+      "englishGain": 1.799999952,
+      "englishOffset": 3.200000048,
+      "englishUnits": "F",
+      "comments": "Head Temperature"
+    },
+    {
+      "dpid": "19",
+      "pid": "202D",
+      "order": 4,
+      "name": "TPS %",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.45449999,
+      "metricOffset": 0.0,
+      "metricUnits": "Pct",
+      "englishGain": 0.45449999,
+      "englishOffset": 0.0,
+      "englishUnits": "Pct",
+      "comments": "Throttle Position"
+    },
+    {
+      "dpid": "19",
+      "pid": "202E",
+      "order": 5,
+      "name": "TPS Volts",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "Cnts",
+      "englishGain": 0.01953125,
+      "englishOffset": 0.0,
+      "englishUnits": "Volts",
+      "comments": "TPS Volts"
+    },
+    {
+      "dpid": "1A",
+      "pid": "2140",
+      "order": 0,
+      "name": "O2 Raw Front",
+      "size": 2,
+      "endian": 1,
+      "metricGain": 0.0763126,
+      "metricOffset": 0.0,
+      "metricUnits": "mV",
+      "englishGain": 0.015625,
+      "englishOffset": 0.0,
+      "englishUnits": "Cnts",
+      "comments": "CAN O2 Raw Front"
+    },
+    {
+      "dpid": "1A",
+      "pid": "2141",
+      "order": 1,
+      "name": "O2 Raw Rear",
+      "size": 2,
+      "endian": 1,
+      "metricGain": 0.0763126,
+      "metricOffset": 0.0,
+      "metricUnits": "mV",
+      "englishGain": 0.015625,
+      "englishOffset": 0.0,
+      "englishUnits": "Cnts",
+      "comments": "CAN O2 Raw Rear"
+    },
+    {
+      "dpid": "1A",
+      "pid": "2033",
+      "order": 2,
+      "name": "Knock Retard Front",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.25,
+      "metricOffset": 0.0,
+      "metricUnits": "Deg",
+      "englishGain": 0.25,
+      "englishOffset": 0.0,
+      "englishUnits": "Deg",
+      "comments": "Knock Retard Front (Total)"
+    },
+    {
+      "dpid": "1A",
+      "pid": "2034",
+      "order": 3,
+      "name": "Knock Retard Rear",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.25,
+      "metricOffset": 0.0,
+      "metricUnits": "Deg",
+      "englishGain": 0.25,
+      "englishOffset": 0.0,
+      "englishUnits": "Deg",
+      "comments": "Knock Retard Rear (Total)"
+    },
+    {
+      "dpid": "1B",
+      "pid": "2035",
+      "order": 0,
+      "name": "Engine Speed",
+      "size": 2,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "RPM",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "RPM",
+      "comments": "Engine Speed"
+    },
+    {
+      "dpid": "1B",
+      "pid": "2036",
+      "order": 1,
+      "name": "Run Time",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "Sec",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Sec",
+      "comments": "Engine Run Time"
+    },
+    {
+      "dpid": "1B",
+      "pid": "2037",
+      "order": 2,
+      "name": "Barometer",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.368999988,
+      "metricOffset": 10.35400009,
+      "metricUnits": "kPa",
+      "englishGain": 0.108970001,
+      "englishOffset": 3.057499886,
+      "englishUnits": "in Hg",
+      "comments": "Barometric Pressure Reading"
+    },
+    {
+      "dpid": "1B",
+      "pid": "2038",
+      "order": 3,
+      "name": "Sync Cntr",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "Cnts",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Cnts",
+      "comments": "Out of Sync Counter"
+    },
+    {
+      "dpid": "1B",
+      "pid": "2039",
+      "order": 4,
+      "name": "Vehicle Speed",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "KPH",
+      "englishGain": 0.621100008,
+      "englishOffset": 0.0,
+      "englishUnits": "MPH",
+      "comments": "Vehicle Speed"
+    },
+    {
+      "dpid": "1C",
+      "pid": "203A",
+      "order": 0,
+      "name": "Battery Volts",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.100000001,
+      "metricOffset": 0.0,
+      "metricUnits": "Volts",
+      "englishGain": 0.100000001,
+      "englishOffset": 0.0,
+      "englishUnits": "V",
+      "comments": "Battery Voltage"
+    },
+    {
+      "dpid": "1C",
+      "pid": "203B",
+      "order": 1,
+      "name": "Ion-Q Front",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.078125,
+      "metricOffset": 0.0,
+      "metricUnits": "Volts",
+      "englishGain": 0.078125,
+      "englishOffset": 0.0,
+      "englishUnits": "Volts",
+      "comments": "Ion-Q Front Cyl"
+    },
+    {
+      "dpid": "1C",
+      "pid": "203C",
+      "order": 2,
+      "name": "Ion-Q Rear",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.078125,
+      "metricOffset": 0.0,
+      "metricUnits": "Volts",
+      "englishGain": 0.078125,
+      "englishOffset": 0.0,
+      "englishUnits": "Volts",
+      "comments": "ION-Q Cylinder 2"
+    },
+    {
+      "dpid": "1C",
+      "pid": "203D",
+      "order": 3,
+      "name": "Factory 1",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "Bits",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Bits",
+      "comments": "TTS - O2 Front Raw Voltage"
+    },
+    {
+      "dpid": "1C",
+      "pid": "203E",
+      "order": 4,
+      "name": "Factory 2",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "Bits",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Bits",
+      "comments": "TTS - O2 Rear Raw Voltage (WAS PE bit)"
+    },
+    {
+      "dpid": "1C",
+      "pid": "203F",
+      "order": 5,
+      "name": "Factory 3",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "Bits",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Bits",
+      "comments": "User Defined 3 - MT7 Learn Enable"
+    },
+    {
+      "dpid": "1D",
+      "pid": "2043",
+      "order": 0,
+      "name": "O2 Sensor Front",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 20.0,
+      "metricOffset": 0.0,
+      "metricUnits": "mV",
+      "englishGain": 20.0,
+      "englishOffset": 0.0,
+      "englishUnits": "mV",
+      "comments": "Oxygen Sensor Voltage Cylinder 1"
+    },
+    {
+      "dpid": "1D",
+      "pid": "2044",
+      "order": 1,
+      "name": "O2 Sensor Rear",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 20.0,
+      "metricOffset": 0.0,
+      "metricUnits": "mV",
+      "englishGain": 20.0,
+      "englishOffset": 0.0,
+      "englishUnits": "mV",
+      "comments": "Oxygen Sensor Voltage Cylinder 2"
+    },
+    {
+      "dpid": "1D",
+      "pid": "2045",
+      "order": 2,
+      "name": "O2 Integrator Front",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.78125,
+      "metricOffset": 0.0,
+      "metricUnits": "Pct",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Cnts",
+      "comments": "Closed Loop Integrator Cylinder 1"
+    },
+    {
+      "dpid": "1D",
+      "pid": "2046",
+      "order": 3,
+      "name": "O2 Integrator Rear",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.78125,
+      "metricOffset": 0.0,
+      "metricUnits": "Pct",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Cnts",
+      "comments": "Closed Loop Integrator Cylinder 2"
+    },
+    {
+      "dpid": "1D",
+      "pid": "2047",
+      "order": 4,
+      "name": "Long Term Front",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.78125,
+      "metricOffset": 0.0,
+      "metricUnits": "Pct",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Cnts",
+      "comments": "Adaptive Fuel Factor Cylinder 1"
+    },
+    {
+      "dpid": "1D",
+      "pid": "2048",
+      "order": 5,
+      "name": "Long Term Rear",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.78125,
+      "metricOffset": 0.0,
+      "metricUnits": "Pct",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Cnts",
+      "comments": "Adaptive Fuel Factor Cylinder 2"
+    },
+    {
+      "dpid": "1E",
+      "pid": "2049",
+      "order": 0,
+      "name": "Crank Time",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.032000002,
+      "metricOffset": 0.0,
+      "metricUnits": "Sec",
+      "englishGain": 0.032000002,
+      "englishOffset": 0.0,
+      "englishUnits": "Sec",
+      "comments": "Crank Time"
+    },
+    {
+      "dpid": "1E",
+      "pid": "204A",
+      "order": 1,
+      "name": "Sidestand Sensor",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.01953125,
+      "metricOffset": 0.0,
+      "metricUnits": "Volts",
+      "englishGain": 0.01953125,
+      "englishOffset": 0.0,
+      "englishUnits": "Volts",
+      "comments": "Sidestand Sensor Voltage"
+    },
+    {
+      "dpid": "1E",
+      "pid": "204B",
+      "order": 2,
+      "name": "Gear Position",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "Gear",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Gear",
+      "comments": "Gear Position, -1 = reverse"
+    },
+    {
+      "dpid": "1F",
+      "pid": "204D",
+      "order": 0,
+      "name": "CC Target Speed",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "KPH",
+      "englishGain": 0.621100008,
+      "englishOffset": 0.0,
+      "englishUnits": "MPH",
+      "comments": "Cruise Target Speed"
+    },
+    {
+      "dpid": "1F",
+      "pid": "204E",
+      "order": 1,
+      "name": "Fuel Pump Volts",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.100000001,
+      "metricOffset": 0.0,
+      "metricUnits": "Volts",
+      "englishGain": 0.100000001,
+      "englishOffset": 0.0,
+      "englishUnits": "Volts",
+      "comments": "Fuel Pump Voltage"
+    },
+    {
+      "dpid": "1F",
+      "pid": "3001",
+      "order": 2,
+      "name": "Engine Flag 2",
+      "size": 1,
+      "endian": 1,
+      "metricGain": null,
+      "metricOffset": null,
+      "metricUnits": null,
+      "englishGain": null,
+      "englishOffset": null,
+      "englishUnits": null,
+      "comments": "Engine Flag 2"
+    },
+    {
+      "dpid": "1F",
+      "pid": "204F",
+      "order": 3,
+      "name": "Spare Analog (BARO)",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.01953125,
+      "metricOffset": 0.0,
+      "metricUnits": "Volts",
+      "englishGain": 0.01953125,
+      "englishOffset": 0.0,
+      "englishUnits": "Volts",
+      "comments": "Spare Analog (BARO) Voltage"
+    },
+    {
+      "dpid": "1F",
+      "pid": "2050",
+      "order": 4,
+      "name": "Throttle Motor DC",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.390599996,
+      "metricOffset": 0.0,
+      "metricUnits": "Pct",
+      "englishGain": 0.390599996,
+      "englishOffset": 0.0,
+      "englishUnits": "Pct",
+      "comments": "Throttle Motor Duty Cycle"
+    },
+    {
+      "dpid": "1F",
+      "pid": "2051",
+      "order": 5,
+      "name": "TGS %",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.390599996,
+      "metricOffset": 0.0,
+      "metricUnits": "Pct",
+      "englishGain": 0.390599996,
+      "englishOffset": 0.0,
+      "englishUnits": "Pct",
+      "comments": "Twistgrip Position"
+    },
+    {
+      "dpid": "20",
+      "pid": "2052",
+      "order": 0,
+      "name": "O2 Post Cat Front",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 20.0,
+      "metricOffset": 0.0,
+      "metricUnits": "mV",
+      "englishGain": 20.0,
+      "englishOffset": 0.0,
+      "englishUnits": "mV",
+      "comments": "O2 sensor - Post Cat Front"
+    },
+    {
+      "dpid": "20",
+      "pid": "2053",
+      "order": 1,
+      "name": "O2 Post Cat Rear",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 20.0,
+      "metricOffset": 0.0,
+      "metricUnits": "mV",
+      "englishGain": 20.0,
+      "englishOffset": 0.0,
+      "englishUnits": "mV",
+      "comments": "O2 sensor - Post Cat Rear"
+    },
+    {
+      "dpid": "20",
+      "pid": "2054",
+      "order": 2,
+      "name": "TGS #1 Volts",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.01953125,
+      "metricOffset": 0.0,
+      "metricUnits": "Volts",
+      "englishGain": 0.01953125,
+      "englishOffset": 0.0,
+      "englishUnits": "Volts",
+      "comments": "Twistgrip Sensor 1 Voltage"
+    },
+    {
+      "dpid": "20",
+      "pid": "2055",
+      "order": 3,
+      "name": "TGS #2 Volts",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.01953125,
+      "metricOffset": 0.0,
+      "metricUnits": "Volts",
+      "englishGain": 0.01953125,
+      "englishOffset": 0.0,
+      "englishUnits": "Volts",
+      "comments": "Twistgrip Sensor 2 Voltage"
+    },
+    {
+      "dpid": "20",
+      "pid": "2056",
+      "order": 4,
+      "name": "TP Sensor 2",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.01953125,
+      "metricOffset": 0.0,
+      "metricUnits": "Volts",
+      "englishGain": 0.01953125,
+      "englishOffset": 0.0,
+      "englishUnits": "Volts",
+      "comments": "TPS Sensor 2"
+    },
+    {
+      "dpid": "20",
+      "pid": "2057",
+      "order": 5,
+      "name": "CC Switch Voltage",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 0.01953125,
+      "metricOffset": 0.0,
+      "metricUnits": "Volts",
+      "englishGain": 0.01953125,
+      "englishOffset": 0.0,
+      "englishUnits": "Volts",
+      "comments": "Cruise Switch Voltage"
+    },
+    {
+      "dpid": "21",
+      "pid": "205A",
+      "order": 0,
+      "name": "CC Disengage Code 1",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "Code",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Code",
+      "comments": "Cruise Control Disengage Reason #1"
+    },
+    {
+      "dpid": "21",
+      "pid": "205B",
+      "order": 1,
+      "name": "CC Disengage Code 2",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "Code",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Code",
+      "comments": "Cruise Control Disengage Reason #2"
+    },
+    {
+      "dpid": "21",
+      "pid": "205C",
+      "order": 2,
+      "name": "CC Disengage Code 3",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "Code",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Code",
+      "comments": "Cruise Control Disengage Reason #3"
+    },
+    {
+      "dpid": "21",
+      "pid": "205D",
+      "order": 3,
+      "name": "CC Disengage Code 4",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "Code",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Code",
+      "comments": "Cruise Control Disengage Reason #4"
+    },
+    {
+      "dpid": "21",
+      "pid": "205E",
+      "order": 4,
+      "name": "CC Disengage Code 5",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "Code",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Code",
+      "comments": "Cruise Control Disengage Reason #5"
+    },
+    {
+      "dpid": "21",
+      "pid": "205F",
+      "order": 5,
+      "name": "CC Disengage Code 6",
+      "size": 1,
+      "endian": 1,
+      "metricGain": 1.0,
+      "metricOffset": 0.0,
+      "metricUnits": "Code",
+      "englishGain": 1.0,
+      "englishOffset": 0.0,
+      "englishUnits": "Code",
+      "comments": "Cruise Control Disengage Reason #6"
+    }
+  ],
+  "osMappings": [
+    {
+      "osLevel": 8,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 9,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 23,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 25,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 44,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 74,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 88,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 93,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 96,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 105,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 123,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 127,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 129,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 141,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 159,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 171,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 176,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 200,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 202,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 205,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 218,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 241,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 242,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 357,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 358,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 374,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 400,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 414,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 415,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 600,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 600,
+      "osTypeId": 1
+    },
+    {
+      "osLevel": 613,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 613,
+      "osTypeId": 1
+    },
+    {
+      "osLevel": 614,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 614,
+      "osTypeId": 1
+    },
+    {
+      "osLevel": 617,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 617,
+      "osTypeId": 1
+    },
+    {
+      "osLevel": 618,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 618,
+      "osTypeId": 1
+    },
+    {
+      "osLevel": 621,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 621,
+      "osTypeId": 1
+    },
+    {
+      "osLevel": 723,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 723,
+      "osTypeId": 2
+    },
+    {
+      "osLevel": 800,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 800,
+      "osTypeId": 2
+    },
+    {
+      "osLevel": 824,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 824,
+      "osTypeId": 2
+    },
+    {
+      "osLevel": 900,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 900,
+      "osTypeId": 2
+    },
+    {
+      "osLevel": 901,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 901,
+      "osTypeId": 4
+    },
+    {
+      "osLevel": 910,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 910,
+      "osTypeId": 4
+    },
+    {
+      "osLevel": 915,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 915,
+      "osTypeId": 4
+    },
+    {
+      "osLevel": 920,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 920,
+      "osTypeId": 2
+    },
+    {
+      "osLevel": 921,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 921,
+      "osTypeId": 2
+    },
+    {
+      "osLevel": 940,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 940,
+      "osTypeId": 3
+    },
+    {
+      "osLevel": 941,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 941,
+      "osTypeId": 3
+    },
+    {
+      "osLevel": 942,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 942,
+      "osTypeId": 3
+    },
+    {
+      "osLevel": 620757761,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 620757761,
+      "osTypeId": 5
+    },
+    {
+      "osLevel": 654901250,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 654901250,
+      "osTypeId": 5
+    },
+    {
+      "osLevel": 671219714,
+      "osTypeId": 0
+    },
+    {
+      "osLevel": 671219714,
+      "osTypeId": 5
+    }
+  ],
+  "datastreamRemaps": [
+    {
+      "dsNumber": 10,
+      "osTypeId": 1,
+      "dsNumberAssign": 11
+    },
+    {
+      "dsNumber": 10,
+      "osTypeId": 2,
+      "dsNumberAssign": 12
+    },
+    {
+      "dsNumber": 10,
+      "osTypeId": 3,
+      "dsNumberAssign": 12
+    },
+    {
+      "dsNumber": 10,
+      "osTypeId": 4,
+      "dsNumberAssign": 14
+    },
+    {
+      "dsNumber": 10,
+      "osTypeId": 5,
+      "dsNumberAssign": 16
+    },
+    {
+      "dsNumber": 9,
+      "osTypeId": 3,
+      "dsNumberAssign": 13
+    },
+    {
+      "dsNumber": 9,
+      "osTypeId": 4,
+      "dsNumberAssign": 13
+    },
+    {
+      "dsNumber": 9,
+      "osTypeId": 5,
+      "dsNumberAssign": 15
+    }
+  ]
+}
