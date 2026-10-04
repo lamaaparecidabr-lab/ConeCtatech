@@ -499,9 +499,14 @@ export class ELM327Connection {
         tag: 'AT',
       });
 
+      // V3 BLE ISOLATED TEST — contador local de notificações RX durante o bootstrap.
+      // Restrito a connectBluetooth(); não altera Serial/COM nem o parser compartilhado.
+      let bleIsolatedRawRxCount = 0;
+
       this.bluetoothRxCharacteristic.addEventListener(
         'characteristicvaluechanged',
         (event: any) => {
+          bleIsolatedRawRxCount += 1;
           const valueView = event.target.value as DataView;
           if (!valueView) return;
           const rawBytes = new Uint8Array(valueView.buffer, valueView.byteOffset, valueView.byteLength);
@@ -554,57 +559,74 @@ export class ELM327Connection {
         throw new Error(`Falha ao ativar notificações RX no adaptador Bluetooth: ${notifyErr.message || notifyErr}`);
       }
 
-      this.connectionType = 'bluetooth';
-      this.onStatusChange('Bluetooth pronto! Estabilizando canal UART BLE...');
+      // V3 BLE ISOLATED TEST — NÃO publica connectionType='bluetooth' durante o ensaio.
+      // Isso impede que fluxos paralelos da aplicação usem o transporte BLE enquanto testamos
+      // exclusivamente o caminho Transparent UART. O caminho Serial/COM permanece intocado.
+      this.onStatusChange('Bluetooth pronto! Executando teste UART BLE isolado...');
 
-      // V3 BLE FIX1 — alguns bridges Transparent UART anunciam Notify como ativo antes de o
-      // caminho UART estar pronto para o primeiro byte. Não tocar na rotina Serial/COM.
-      // Aguardar a estabilização, enviar somente CR como wake-up e então iniciar o handshake.
       const bleSleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
       await bleSleep(450);
 
-      // O serviço Microchip Transparent UART expõe 8841 como client->peripheral (RX do módulo)
-      // e 1E4D como peripheral->client via Notify. Começamos com Write Without Response,
-      // modalidade típica de UART transparente, e fazemos fallback controlado para Write With
-      // Response somente se o handshake completo não produzir qualquer resposta válida.
       this.bleWriteMode = selectedTxItem.properties.writeWithoutResponse ? 'withoutResponse' : 'withResponse';
       this.onPacketLog({
         id: Math.random().toString(36).substring(2, 9),
         timestamp: new Date().toLocaleTimeString(),
         type: 'info',
-        raw: 'BLE_UART_SETTLED',
-        decoded: `[BLE] Canal UART estabilizado. Modo inicial: ${this.bleWriteMode}. Enviando wake-up CR antes do handshake.`,
+        raw: 'BLE_ISOLATED_TEST_START',
+        decoded: `[BLE-ISOLATED] Notify ativo. Nenhum fluxo ELM/J1850 será iniciado. Modo TX: ${this.bleWriteMode}.`,
         tag: 'AT',
       });
-      await this.writeBleCharacteristic(this.bluetoothTxCharacteristic, this.textEncoder.encode('\r'));
-      await bleSleep(180);
 
-      this.onStatusChange('Bluetooth pronto! Executando handshake ELM327...');
-      try {
-        await this.initializeELM327(config);
-      } catch (firstErr: any) {
-        // Se não houve RX útil, repetir UMA vez no outro modo GATT. Isto é restrito ao BLE.
-        // Limpa listeners de chat pendentes/buffer, mas mantém o listener GATT/Notify ativo.
-        const canFallback = selectedTxItem.properties.write === true && selectedTxItem.properties.writeWithoutResponse === true;
-        if (!canFallback) throw firstErr;
+      // 1) Wake-up CR puro.
+      const wake = this.textEncoder.encode('\r');
+      await this.writeBleCharacteristic(this.bluetoothTxCharacteristic, wake);
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'tx',
+        raw: '0D',
+        decoded: '[BLE-ISOLATED-TX] WAKE CR | HEX: 0D',
+        tag: 'AT',
+      });
+      await bleSleep(700);
 
-        this.responseListeners = [];
-        this.rxBuffer = '';
-        this.bleWriteMode = this.bleWriteMode === 'withoutResponse' ? 'withResponse' : 'withoutResponse';
-        this.onPacketLog({
-          id: Math.random().toString(36).substring(2, 9),
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'info',
-          raw: 'BLE_HANDSHAKE_RETRY',
-          decoded: `[BLE] Primeiro handshake sem resposta válida. Nova tentativa única usando ${this.bleWriteMode}.`,
-          tag: 'AT',
-        });
-        await bleSleep(350);
-        await this.writeBleCharacteristic(this.bluetoothTxCharacteristic, this.textEncoder.encode('\r'));
-        await bleSleep(180);
-        await this.initializeELM327(config);
-      }
-      return true;
+      // 2) Único comando do ensaio: ATZ\r. Sem initializeELM327(), ATSH ou ATMA.
+      const atz = this.textEncoder.encode('ATZ\r');
+      await this.writeBleCharacteristic(this.bluetoothTxCharacteristic, atz);
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'tx',
+        raw: '41 54 5A 0D',
+        decoded: '[BLE-ISOLATED-TX] ATZ\\r | HEX: 41 54 5A 0D',
+        tag: 'AT',
+      });
+
+      // Janela deliberadamente longa para qualquer retorno do reset do ELM.
+      await bleSleep(6000);
+
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: bleIsolatedRawRxCount > 0 ? 'info' : 'error',
+        raw: bleIsolatedRawRxCount > 0 ? 'BLE_ISOLATED_RX_PRESENT' : 'BLE_ISOLATED_ZERO_RX',
+        decoded: bleIsolatedRawRxCount > 0
+          ? `[BLE-ISOLATED] Teste encerrado: ${bleIsolatedRawRxCount} notificação(ões) RX recebida(s).`
+          : '[BLE-ISOLATED] Teste encerrado: ZERO notificações RX após CR + ATZ\\r e 6000 ms de espera.',
+        tag: 'AT',
+      });
+
+      // Ensaio diagnóstico termina aqui de propósito. Não iniciar handshake/J1850.
+      this.onStatusChange('Teste UART BLE isolado concluído. Consulte o Terminal.');
+      try { this.gattServer?.disconnect(); } catch {}
+      this.bluetoothDevice = null;
+      this.gattServer = null;
+      this.bluetoothTxCharacteristic = null;
+      this.bluetoothRxCharacteristic = null;
+      this.txCharacteristic = null;
+      this.rxCharacteristic = null;
+      this.bleWriteMode = 'auto';
+      return false;
     } catch (err: any) {
       this.onStatusChange(`Erro na conexão Bluetooth: ${err.message || err}`, true);
       this.disconnect();
