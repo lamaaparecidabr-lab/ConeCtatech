@@ -25,6 +25,7 @@ const loadBase = (): SavedDatalogSession | undefined => {
 
 export function useDatalogSession(telemetry: TelemetryData) {
   const [recording, setRecording] = useState(false);
+  const [sessionState, setSessionState] = useState<'idle' | 'recording' | 'paused' | 'finalized'>('idle');
   const [samples, setSamples] = useState<DatalogSample[]>([]);
   const [base, setBase] = useState<SavedDatalogSession | undefined>(() => loadBase());
   const startedAt = useRef<number>();
@@ -39,19 +40,29 @@ export function useDatalogSession(telemetry: TelemetryData) {
     startedAt.current = Date.now();
     lastDpid1DAt.current = telemetry.activeDpidData?.['1D']?.updatedAt;
     setRecording(true);
+    setSessionState('recording');
   }, [telemetry.activeDpidData]);
 
   // CONTINUAR retoma exatamente a sessão pausada, sem limpar amostras nem BASE.
   const resumeRecording = useCallback(() => {
     if (!startedAt.current) startedAt.current = Date.now();
     setRecording(true);
+    setSessionState('recording');
   }, []);
-  const pauseRecording = useCallback(() => setRecording(false), []);
+  const pauseRecording = useCallback(() => {
+    setRecording(false);
+    setSessionState('paused');
+  }, []);
+  const finalizeSession = useCallback(() => {
+    setRecording(false);
+    setSessionState(samples.length ? 'finalized' : 'idle');
+  }, [samples.length]);
   const clearCurrent = useCallback(() => {
     setRecording(false);
     setSamples([]);
     startedAt.current = undefined;
     lastDpid1DAt.current = undefined;
+    setSessionState('idle');
   }, []);
 
   useEffect(() => {
@@ -104,5 +115,5 @@ export function useDatalogSession(telemetry: TelemetryData) {
     try { localStorage.removeItem(BASE_KEY); } catch { /* noop */ }
   }, []);
 
-  return { recording, samples, base, startNewSession, resumeRecording, pauseRecording, clearCurrent, saveAsBase, clearBase };
+  return { recording, sessionState, samples, base, startNewSession, resumeRecording, pauseRecording, finalizeSession, clearCurrent, saveAsBase, clearBase };
 }
