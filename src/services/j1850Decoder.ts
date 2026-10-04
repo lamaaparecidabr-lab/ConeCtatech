@@ -1,6 +1,7 @@
+import { J1850_DTC_DESCRIPTIONS } from './j1850DtcCatalog';
 import { TelemetryData, PacketLog } from '../types';
-import { decodeDataMasterJ1850Dpid } from './datamasterJ1850Decoder';
-import { getDataMasterDpidPayloadSize, getDataMasterStreamsForDpid } from './datamasterJ1850Catalog';
+import { decodeReferenceJ1850Dpid } from './j1850ReferenceDecoder';
+import { getReferenceDpidPayloadSize, getReferenceStreamsForDpid } from './j1850ReferenceCatalog';
 
 /**
  * Cálculo e validação do CRC VPW Harley (polinômio 0x1D, valor inicial 0xFF)
@@ -190,7 +191,7 @@ export class J1850Decoder {
       rawBytes: number[],
       values: Record<string, string | number>,
       note?: string,
-      meta?: { catalogSource?: 'TTS/DataMaster' | 'Real-bike validation' | 'Unknown'; validation?: 'TTS_MAPPED' | 'TTS_REAL_VALIDATED' | 'DETECTED_UNMAPPED' | 'UNSUPPORTED' | 'UNKNOWN'; dataStreams?: string[] },
+      meta?: { catalogSource?: 'catálogo técnico de referência' | 'Real-bike validation' | 'Unknown'; validation?: 'REFERENCE_MAPPED' | 'REAL_VALIDATED' | 'DETECTED_UNMAPPED' | 'UNSUPPORTED' | 'UNKNOWN'; dataStreams?: string[] },
     ) => {
       telemetry.activeDpidData = {
         ...(telemetry.activeDpidData || {}),
@@ -201,9 +202,9 @@ export class J1850Decoder {
           updatedAt: Date.now(),
           values,
           note,
-          catalogSource: getDataMasterDpidPayloadSize(dpid) > 0 ? 'TTS/DataMaster' : 'Unknown',
-          validation: getDataMasterDpidPayloadSize(dpid) > 0 ? 'TTS_MAPPED' : 'UNKNOWN',
-          dataStreams: getDataMasterStreamsForDpid(dpid).map(s=>s.name),
+          catalogSource: getReferenceDpidPayloadSize(dpid) > 0 ? 'catálogo técnico de referência' : 'Unknown',
+          validation: getReferenceDpidPayloadSize(dpid) > 0 ? 'REFERENCE_MAPPED' : 'UNKNOWN',
+          dataStreams: getReferenceStreamsForDpid(dpid).map(s=>s.name),
           ...meta,
         },
       };
@@ -672,7 +673,7 @@ export class J1850Decoder {
     // 10. HARLEY ACTIVE DATA - dados ativos DPID 0x11
     // Request: 6C 10 F1 2A 01 11
     // Response: 6C F1 10 6A 11 [RPM_H] [RPM_L] [DesiredIdle] [Battery] [MAP] [TPS] [CRC]
-    // dados ativos HD-DatastreamConfig: DPID 0x11 -> $2001,$2002,$2003,$2004,$2005.
+    // dados ativos configuração de datastreams: DPID 0x11 -> $2001,$2002,$2003,$2004,$2005.
     // =========================================================================
     else if (cleanHex.startsWith('6cf1106a11')) {
       const frameBytes = bytes;
@@ -691,7 +692,7 @@ export class J1850Decoder {
         telemetry.batteryVoltage = Math.round((batteryRaw * 0.1) * 10) / 10;
         telemetry.manifoldPressureKpa = Math.round((mapRaw * 0.368999988 + 10.35400009) * 10) / 10;
         telemetry.throttlePosition = Math.round((tpsRaw * 0.45449999) * 10) / 10;
-        storeActiveDpid('11', frameBytes.slice(5, 11), { RPM: activeRpm, 'Desired Idle': desiredIdleRpm, 'Bateria (V)': telemetry.batteryVoltage, 'MAP (kPa)': telemetry.manifoldPressureKpa, 'TPS (%)': telemetry.throttlePosition }, 'TTS/DataMaster + comportamento validado em moto real.', { catalogSource:'Real-bike validation', validation:'TTS_REAL_VALIDATED' });
+        storeActiveDpid('11', frameBytes.slice(5, 11), { RPM: activeRpm, 'Desired Idle': desiredIdleRpm, 'Bateria (V)': telemetry.batteryVoltage, 'MAP (kPa)': telemetry.manifoldPressureKpa, 'TPS (%)': telemetry.throttlePosition }, 'catálogo técnico de referência + comportamento validado em moto real.', { catalogSource:'Real-bike validation', validation:'REAL_VALIDATED' });
 
         packetLog = {
           id: Math.random().toString(36).substring(2, 9),
@@ -719,7 +720,7 @@ export class J1850Decoder {
         const iatVolts = frameBytes[8] * 0.01953125;
         const mapVolts = frameBytes[9] * 0.01953125;
         const tpsVolts = frameBytes[10] * 0.01953125;
-        storeActiveDpid('12', frameBytes.slice(5, 11), { 'Temp. motor (°C)': engineTempCActive, 'IAT (°C)': intakeTempCActive, 'ET sensor (V)': Number(etVolts.toFixed(3)), 'IAT sensor (V)': Number(iatVolts.toFixed(3)), 'MAP sensor (V)': Number(mapVolts.toFixed(3)), 'TPS sensor (V)': Number(tpsVolts.toFixed(3)) }, 'TTS/DataMaster + comportamento validado em moto real; temperatura ativa RAW − 16.', { catalogSource:'Real-bike validation', validation:'TTS_REAL_VALIDATED' });
+        storeActiveDpid('12', frameBytes.slice(5, 11), { 'Temp. motor (°C)': engineTempCActive, 'IAT (°C)': intakeTempCActive, 'ET sensor (V)': Number(etVolts.toFixed(3)), 'IAT sensor (V)': Number(iatVolts.toFixed(3)), 'MAP sensor (V)': Number(mapVolts.toFixed(3)), 'TPS sensor (V)': Number(tpsVolts.toFixed(3)) }, 'catálogo técnico de referência + comportamento validado em moto real; temperatura ativa RAW − 16.', { catalogSource:'Real-bike validation', validation:'REAL_VALIDATED' });
         packetLog = {
           id: Math.random().toString(36).substring(2, 9),
           timestamp: new Date().toLocaleTimeString(),
@@ -758,9 +759,9 @@ export class J1850Decoder {
     }
     else if (cleanHex.startsWith('6cf1106a18') && bytes.length >= 11) {
       const d = bytes.slice(5, 11);
-      storeActiveDpid('18', d, { 'VE Front': Number((d[0]*0.5).toFixed(1)), 'VE Rear': Number((d[1]*0.5).toFixed(1)), 'VE New Front': Number((d[2]*0.5).toFixed(1)), 'VE New Rear': Number((d[3]*0.5).toFixed(1)), 'Warm Up AFR': Number((d[4]*0.1).toFixed(1)), IAC: d[5] }, 'Fórmulas TTS/DataMaster.', { catalogSource:'TTS/DataMaster', validation:'TTS_MAPPED', dataStreams:['Generic Data','Generic O2 Data','DBW Data','VTune Data'] });
+      storeActiveDpid('18', d, { 'VE Front': Number((d[0]*0.5).toFixed(1)), 'VE Rear': Number((d[1]*0.5).toFixed(1)), 'VE New Front': Number((d[2]*0.5).toFixed(1)), 'VE New Rear': Number((d[3]*0.5).toFixed(1)), 'Warm Up AFR': Number((d[4]*0.1).toFixed(1)), IAC: d[5] }, 'Fórmulas catálogo técnico de referência.', { catalogSource:'catálogo técnico de referência', validation:'REFERENCE_MAPPED', dataStreams:['Generic Data','Generic O2 Data','DBW Data','Tuning Data'] });
       packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
-        decoded: `[DATAMASTER][DPID:0x18] VE-F=${(d[0]*0.5).toFixed(1)}% | VE-R=${(d[1]*0.5).toFixed(1)}% | VE-New-F=${(d[2]*0.5).toFixed(1)}% | VE-New-R=${(d[3]*0.5).toFixed(1)}% | WarmUpAFR=${(d[4]*0.1).toFixed(1)} | IAC=${d[5]} | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+        decoded: `[REFERENCE][DPID:0x18] VE-F=${(d[0]*0.5).toFixed(1)}% | VE-R=${(d[1]*0.5).toFixed(1)}% | VE-New-F=${(d[2]*0.5).toFixed(1)}% | VE-New-R=${(d[3]*0.5).toFixed(1)}% | WarmUpAFR=${(d[4]*0.1).toFixed(1)} | IAC=${d[5]} | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
     }
     else if (cleanHex.startsWith('6cf1106a1a') && bytes.length >= 11) {
       const d = bytes.slice(5, 11);
@@ -777,7 +778,7 @@ export class J1850Decoder {
       const integratorR = Number((d[3] * 0.78125).toFixed(2));
       const longTermF = Number((d[4] * 0.78125).toFixed(2));
       const longTermR = Number((d[5] * 0.78125).toFixed(2));
-      storeActiveDpid('1D', d, { 'O2 Front (mV)': o2FrontMv, 'O2 Rear (mV)': o2RearMv, 'Integrator F (%)': integratorF, 'Integrator R (%)': integratorR, 'Long Term F (%)': longTermF, 'Long Term R (%)': longTermR }, 'Mapeamento TTS/DataMaster + comportamento validado em moto real; RAW preservado.', { catalogSource:'Real-bike validation', validation:'TTS_REAL_VALIDATED' });
+      storeActiveDpid('1D', d, { 'O2 Front (mV)': o2FrontMv, 'O2 Rear (mV)': o2RearMv, 'Integrator F (%)': integratorF, 'Integrator R (%)': integratorR, 'Long Term F (%)': longTermF, 'Long Term R (%)': longTermR }, 'Mapeamento catálogo técnico de referência + comportamento validado em moto real; RAW preservado.', { catalogSource:'Real-bike validation', validation:'REAL_VALIDATED' });
       // Espelha somente grandezas sustentadas pelo DPID 0x1D. Não deriva AFR narrowband.
       telemetry.frontO2Voltage = o2FrontMv / 1000;
       telemetry.rearO2Voltage = o2RearMv / 1000;
@@ -812,22 +813,22 @@ export class J1850Decoder {
         decoded: `[RESEARCH-STRONG][DPID:0x1B] RPM=${rpm} | RunTimeRaw=${runTimeRaw} | Barometer=${baroKpa.toFixed(1)}kPa | SyncRaw=0x${syncRaw.toString(16).padStart(2,'0').toUpperCase()} | VehicleSpeedRaw=${vehicleSpeedRaw} | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
     }
 
-    // Demais DPIDs ativos: decodificação dirigida pelo catálogo TTS/DataMaster.
+    // Demais DPIDs ativos: decodificação dirigida pelo catálogo técnico de referência.
     // A fórmula só é aplicada após resposta positiva da ECM; DPID não suportado continua
     // sendo classificado pela camada de transporte como negative/unsupported.
     else if (/^6cf1106a(14|15|1c|1e|1f|20|21)/.test(cleanHex)) {
       const dpid = cleanHex.substring(8,10).toUpperCase();
-      const payloadSize = getDataMasterDpidPayloadSize(dpid);
+      const payloadSize = getReferenceDpidPayloadSize(dpid);
       const d = payloadSize > 0 ? bytes.slice(5, 5 + payloadSize) : [];
-      const decodedDm = decodeDataMasterJ1850Dpid(dpid, d);
-      if (decodedDm && d.length === payloadSize) {
-        storeActiveDpid(dpid, d, decodedDm.values, decodedDm.note, {
-          catalogSource: 'TTS/DataMaster', validation: decodedDm.validation, dataStreams: decodedDm.streams,
+      const decodedReference = decodeReferenceJ1850Dpid(dpid, d);
+      if (decodedReference && d.length === payloadSize) {
+        storeActiveDpid(dpid, d, decodedReference.values, decodedReference.note, {
+          catalogSource: 'catálogo técnico de referência', validation: decodedReference.validation, dataStreams: decodedReference.streams,
         });
         packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
-          decoded: `[DATAMASTER][DPID:0x${dpid}][TTS_MAPPED] ${Object.entries(decodedDm.values).map(([k,v])=>`${k}=${v}`).join(' | ')} | RAW=${decodedDm.raw}`, tag: 'STATUS' };
+          decoded: `[REFERENCE][DPID:0x${dpid}][REFERENCE_MAPPED] ${Object.entries(decodedReference.values).map(([k,v])=>`${k}=${v}`).join(' | ')} | RAW=${decodedReference.raw}`, tag: 'STATUS' };
       } else {
-        storeActiveDpid(dpid, d, {}, 'Resposta positiva, mas payload não corresponde à definição TTS/DataMaster carregada.', {
+        storeActiveDpid(dpid, d, {}, 'Resposta positiva, mas payload não corresponde à definição catálogo técnico de referência carregada.', {
           catalogSource: 'Unknown', validation: 'DETECTED_UNMAPPED',
         });
       }
@@ -1194,7 +1195,7 @@ export function parseMode03DTCs(bytesHex: string): string[] {
 /**
  * Mapeamento estático de erros conhecidos diagnóstico da Harley-Davidson
  */
-export const BANCO_ERROS_HARLEY: Record<string, { desc: string; category: string; tip: string }> = {
+const BANCO_ERROS_HARLEY_CURADO: Record<string, { desc: string; category: string; tip: string }> = {
   P0107: {
     desc: 'Sensor MAP - Circuito Aberto/Baixo',
     category: 'Injeção / Mistura',
@@ -1285,4 +1286,13 @@ export const BANCO_ERROS_HARLEY: Record<string, { desc: string; category: string
     category: 'Rede de Diagnóstico',
     tip: 'Curto-circuito do fio de dados serial com o positivo da bateria (12V).',
   },
+};
+
+export const BANCO_ERROS_HARLEY: Record<string, { desc: string; category: string; tip: string }> = {
+  ...Object.fromEntries(Object.entries(J1850_DTC_DESCRIPTIONS).map(([code, desc]) => [code, {
+    desc,
+    category: 'DTC Harley / referência técnica',
+    tip: 'Descrição rápida catálogo técnico de referência. A aplicabilidade varia por ano/modelo; para diagnóstico do circuito, consultar o manual de serviço da motocicleta.',
+  }])),
+  ...BANCO_ERROS_HARLEY_CURADO,
 };

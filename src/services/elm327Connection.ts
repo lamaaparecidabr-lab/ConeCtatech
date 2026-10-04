@@ -1023,7 +1023,7 @@ export class ELM327Connection {
               status: negative ? 'negative' : 'timeout',
               raw: result.reply.trim() || undefined,
               updatedAt: Date.now(),
-              catalogSource: negative ? 'TTS/DataMaster' : 'Unknown',
+              catalogSource: negative ? 'catálogo técnico de referência' : 'Unknown',
               validation: negative ? 'UNSUPPORTED' : 'UNKNOWN',
               note: negative ? 'ECM respondeu negativamente a este DPID.'
                 : elmRejected ? 'Comando rejeitado pelo ELM.'
@@ -1210,7 +1210,7 @@ export class ELM327Connection {
     }
 
     // 2. CONSULTA DE DTCs HARLEY (6C 10/40/60 F1 19 52 FF 00)
-    // 0x10/0x40/0x60 são nós de origem. Current/Historic é determinado pelo byte STATUS de cada DTC no decoder (lógica TTS).
+    // 0x10/0x40/0x60 são nós de origem. Current/Historic é determinado pelo byte STATUS de cada DTC no decoder (lógica referência técnica).
     // Mantemos as três consultas observadas; o endereço não define o estado da falha.
     // Nó diagnóstico 0x10
     this.onStatusChange('Configurando cabeçalho diagnóstico do nó 0x10 (ATSH 6C 10 F1)...');
@@ -1327,8 +1327,8 @@ export class ELM327Connection {
     }
     await sleep(2000);
 
-    // 3. VARREDURA ATIVA J1850 dirigida pelo catálogo TTS/DataMaster (somente leitura)
-    // DPIDs 0x11..0x21 definidos no banco oficial TTS/DataMaster HD-DatastreamConfig.
+    // 3. VARREDURA ATIVA J1850 dirigida pelo catálogo técnico de referência (somente leitura)
+    // DPIDs 0x11..0x21 definidos no catálogo técnico interno de datastreams.
     // IMPORTANTE: referências CAN 0x200..0x210 ficam deliberadamente FORA desta rotina.
     // Elas pertencem à futura implementação CAN e não devem ser misturadas ao J1850 atual.
     // IDs internos $20xx também NÃO são convertidos em DPID por suposição.
@@ -1354,7 +1354,7 @@ export class ELM327Connection {
     ];
     const experimentalResults: string[] = [];
 
-    this.onStatusChange(`Scanner #${scanNumber}: iniciando varredura J1850 TTS/DataMaster...`);
+    this.onStatusChange(`Scanner #${scanNumber}: iniciando varredura J1850 catálogo técnico de referência...`);
     const hActive = await this.chat('ATSH 6C 10 F1', 'OK', 700);
     if (hActive.success) {
       const allowLong = await this.chat('ATAL', 'OK', 700);
@@ -1368,7 +1368,7 @@ export class ELM327Connection {
             timestamp: new Date().toLocaleTimeString(),
             type: 'info',
             raw: request,
-            decoded: `[DATAMASTER][SCAN #${scanNumber}][DPID:0x${item.id}][REQUEST] ${item.label}`,
+            decoded: `[REFERENCE][SCAN #${scanNumber}][DPID:0x${item.id}][REQUEST] ${item.label}`,
             tag: 'STATUS',
           });
 
@@ -1392,7 +1392,7 @@ export class ELM327Connection {
               timestamp: new Date().toLocaleTimeString(),
               type: 'rx',
               raw: res.reply.trim() || request,
-              decoded: `[DATAMASTER][SCAN #${scanNumber}][DPID:0x${item.id}][POSITIVE][${elapsed}ms] Frame bruto preservado; resposta encaminhada ao decoder.`,
+              decoded: `[REFERENCE][SCAN #${scanNumber}][DPID:0x${item.id}][POSITIVE][${elapsed}ms] Frame bruto preservado; resposta encaminhada ao decoder.`,
               tag: 'STATUS',
             });
           } else {
@@ -1404,7 +1404,7 @@ export class ELM327Connection {
                 status: negative ? 'negative' : 'timeout',
                 raw: res.reply.trim() || undefined,
                 updatedAt: Date.now(),
-                catalogSource: negative ? 'TTS/DataMaster' : 'Unknown',
+                catalogSource: negative ? 'catálogo técnico de referência' : 'Unknown',
                 validation: negative ? 'UNSUPPORTED' : 'UNKNOWN',
                 note: negative ? 'ECM respondeu negativamente à consulta nesta motocicleta.' : (elmRejected ? 'Comando rejeitado pelo ELM.' : 'Sem resposta dentro do tempo da consulta.'),
               },
@@ -1415,7 +1415,7 @@ export class ELM327Connection {
               timestamp: new Date().toLocaleTimeString(),
               type: negative || elmRejected ? 'error' : 'info',
               raw: res.reply.trim() || `${request} -> SEM RESPOSTA`,
-              decoded: `[DATAMASTER][SCAN #${scanNumber}][DPID:0x${item.id}][${negative ? 'UNSUPPORTED' : elmRejected ? 'ELM-REJECT' : 'TIMEOUT'}][${elapsed}ms] Resposta integral preservada; nenhum valor inferido.`,
+              decoded: `[REFERENCE][SCAN #${scanNumber}][DPID:0x${item.id}][${negative ? 'UNSUPPORTED' : elmRejected ? 'ELM-REJECT' : 'TIMEOUT'}][${elapsed}ms] Resposta integral preservada; nenhum valor inferido.`,
               tag: 'STATUS',
             });
           }
@@ -1829,7 +1829,7 @@ export class ELM327Connection {
         '1A': { dpid:'1A', status:'ok', raw:'06 66 06 66 00 00', updatedAt:Date.now(), values:{ 'O2 Raw Front (mV)':125, 'O2 Raw Rear (mV)':125, 'Knock Front (°)':0, 'Knock Rear (°)':0 }, note:'Simulação funcional.' },
         '1B': { dpid:'1B', status:'ok', raw:'03 D4 0A 3C 01 00', updatedAt:Date.now(), values:{ RPM:980, 'Run Time raw':10, 'Barometer (kPa)':32.5, 'Sync raw':'0x01', 'Vehicle Speed raw':0 }, note:'Simulação funcional.' },
         '1C': { dpid:'1C', status:'ok', raw:'00 00 00 00 00 00', updatedAt:Date.now(), values:{}, note:'RAW simulado; fórmulas ainda não promovidas como validadas.' },
-        '1D': { dpid:'1D', status:'ok', raw:'20 20 80 80 80 80', updatedAt:Date.now(), values:{ 'O2 Front (mV)':640, 'O2 Rear (mV)':640, 'Integrator F (%)':100, 'Integrator R (%)':100, 'Long Term F (%)':100, 'Long Term R (%)':100 }, note:'Simulação do mapeamento DataMaster/TTS DPID 0x1D.' },
+        '1D': { dpid:'1D', status:'ok', raw:'20 20 80 80 80 80', updatedAt:Date.now(), values:{ 'O2 Front (mV)':640, 'O2 Rear (mV)':640, 'Integrator F (%)':100, 'Integrator R (%)':100, 'Long Term F (%)':100, 'Long Term R (%)':100 }, note:'Simulação do mapeamento catálogo técnico de referência DPID 0x1D.' },
         '1E': { dpid:'1E', status:'negative', updatedAt:Date.now(), note:'Resposta negativa reproduzida conforme teste real.' },
         '1F': { dpid:'1F', status:'negative', updatedAt:Date.now(), note:'Resposta negativa reproduzida conforme teste real.' },
         '20': { dpid:'20', status:'negative', updatedAt:Date.now(), note:'Resposta negativa reproduzida conforme teste real.' },
@@ -1963,7 +1963,7 @@ export class ELM327Connection {
           '1D': {
             dpid:'1D', status:'ok', raw:raw1d.map(hex).join(' '), updatedAt:Date.now(),
             values:{ 'O2 Front (mV)':raw1d[0]*20, 'O2 Rear (mV)':raw1d[1]*20, 'Integrator F (%)':Number((raw1d[2]*0.78125).toFixed(2)), 'Integrator R (%)':Number((raw1d[3]*0.78125).toFixed(2)), 'Long Term F (%)':Number((raw1d[4]*0.78125).toFixed(2)), 'Long Term R (%)':Number((raw1d[5]*0.78125).toFixed(2)) },
-            note:'Simulação do mapeamento DataMaster/TTS DPID 0x1D.'
+            note:'Simulação do mapeamento catálogo técnico de referência DPID 0x1D.'
           },
           '1A': {
             dpid:'1A', status:'ok', raw:`${raw1aF.slice(0,2)} ${raw1aF.slice(2)} ${raw1aR.slice(0,2)} ${raw1aR.slice(2)} 00 00`, updatedAt:Date.now(),
@@ -2118,10 +2118,10 @@ export class ELM327Connection {
     // Harley DTCs Read (19 52 FF 00)
     else if (u === '19 52 FF 00' || u === '1952FF00') {
       if (this.simCurrentHeader.includes('10')) {
-        // Nó 0x10: simulador inclui status TTS por DTC
+        // Nó 0x10: simulador inclui status referência técnica por DTC
         resp = this.simHistoricDtcs.length > 0 ? '6C F1 10 59 01 07 10 01 18 12' : '6C F1 10 59 00 00 00';
       } else if (this.simCurrentHeader.includes('40')) {
-        // Nó 0x40: simulador inclui status TTS por DTC
+        // Nó 0x40: simulador inclui status referência técnica por DTC
         resp = this.simActiveDtcs.length > 0 ? '6C F1 40 59 01 31 02' : '6C F1 40 59 00 00 00';
       } else {
         // Velocímetro (Nó 0x60): Sem falhas
