@@ -209,65 +209,22 @@ export class ELM327Connection {
       tag: 'AT',
     });
 
-    // V3 BLE FIX2 — instrumentação estritamente BLE.
-    // Não altera o método de escrita escolhido nem qualquer caminho Serial/COM.
-    let writeApi = '';
-    try {
-      if (useWithResponse) {
-        if (typeof char.writeValueWithResponse === 'function') {
-          writeApi = 'writeValueWithResponse';
-        } else if (typeof char.writeValue === 'function') {
-          writeApi = 'writeValue';
-        } else {
-          throw new Error('Canal Bluetooth não aceita gravação de dados com resposta.');
-        }
-      } else {
-        if (typeof char.writeValueWithoutResponse === 'function') {
-          writeApi = 'writeValueWithoutResponse';
-        } else if (typeof char.writeValue === 'function') {
-          writeApi = 'writeValue';
-        } else {
-          throw new Error('Canal Bluetooth não aceita gravação de dados sem resposta.');
-        }
-      }
-
-      this.onPacketLog({
-        id: Math.random().toString(36).substring(2, 9),
-        timestamp: new Date().toLocaleTimeString(),
-        type: 'info',
-        raw: `BLE_WRITE_REQUEST:${writeApi}`,
-        decoded: `[BLE-WRITE-REQUEST] API=${writeApi} | HEX=${hexStr} | ASCII=${asciiStr}`,
-        tag: 'AT',
-      });
-
-      const startedAt = Date.now();
-
-      if (writeApi === 'writeValueWithResponse') {
+    if (useWithResponse) {
+      if (typeof char.writeValueWithResponse === 'function') {
         await char.writeValueWithResponse(data);
-      } else if (writeApi === 'writeValueWithoutResponse') {
-        await char.writeValueWithoutResponse(data);
-      } else {
+      } else if (typeof char.writeValue === 'function') {
         await char.writeValue(data);
+      } else {
+        throw new Error('Canal Bluetooth não aceita gravação de dados com resposta.');
       }
-
-      this.onPacketLog({
-        id: Math.random().toString(36).substring(2, 9),
-        timestamp: new Date().toLocaleTimeString(),
-        type: 'info',
-        raw: `BLE_WRITE_RESOLVED:${writeApi}`,
-        decoded: `[BLE-WRITE-RESOLVED] API=${writeApi} | ${Date.now() - startedAt}ms | Promise de escrita GATT concluída.`,
-        tag: 'AT',
-      });
-    } catch (err: any) {
-      this.onPacketLog({
-        id: Math.random().toString(36).substring(2, 9),
-        timestamp: new Date().toLocaleTimeString(),
-        type: 'error',
-        raw: `BLE_WRITE_REJECTED:${writeApi || 'none'}`,
-        decoded: `[BLE-WRITE-REJECTED] API=${writeApi || 'nenhuma'} | ${err?.name || 'Error'}: ${err?.message || err}`,
-        tag: 'AT',
-      });
-      throw err;
+    } else {
+      if (typeof char.writeValueWithoutResponse === 'function') {
+        await char.writeValueWithoutResponse(data);
+      } else if (typeof char.writeValue === 'function') {
+        await char.writeValue(data);
+      } else {
+        throw new Error('Canal Bluetooth não aceita gravação de dados sem resposta.');
+      }
     }
   }
 
@@ -391,6 +348,42 @@ export class ELM327Connection {
               decoded: `[BLE-GATT] Service: ${service.uuid}\n[BLE-GATT] Characteristic: ${char.uuid}\n[BLE-GATT] properties:\nread=${item.properties.read}\nwrite=${item.properties.write}\nwriteWithoutResponse=${item.properties.writeWithoutResponse}\nnotify=${item.properties.notify}\nindicate=${item.properties.indicate}`,
               tag: 'AT',
             });
+
+            // V3 BLE AUDIT — enumeração somente-leitura dos descriptors expostos por cada
+            // characteristic. Não escreve em descriptor/characteristic e não interfere na seleção TX/RX.
+            try {
+              const descriptors = await char.getDescriptors();
+              if (descriptors.length === 0) {
+                this.onPacketLog({
+                  id: Math.random().toString(36).substring(2, 9),
+                  timestamp: new Date().toLocaleTimeString(),
+                  type: 'info',
+                  raw: `GATT-DESC-NONE: ${char.uuid}`,
+                  decoded: `[BLE-GATT-DESC] Characteristic ${char.uuid}: nenhum descriptor exposto.`,
+                  tag: 'AT',
+                });
+              } else {
+                for (const descriptor of descriptors) {
+                  this.onPacketLog({
+                    id: Math.random().toString(36).substring(2, 9),
+                    timestamp: new Date().toLocaleTimeString(),
+                    type: 'info',
+                    raw: `GATT-DESC: ${service.uuid} -> ${char.uuid} -> ${descriptor.uuid}`,
+                    decoded: `[BLE-GATT-DESC] Service: ${service.uuid}\n[BLE-GATT-DESC] Characteristic: ${char.uuid}\n[BLE-GATT-DESC] Descriptor: ${descriptor.uuid}`,
+                    tag: 'AT',
+                  });
+                }
+              }
+            } catch (descriptorErr: any) {
+              this.onPacketLog({
+                id: Math.random().toString(36).substring(2, 9),
+                timestamp: new Date().toLocaleTimeString(),
+                type: 'info',
+                raw: `GATT-DESC-UNAVAILABLE: ${char.uuid}`,
+                decoded: `[BLE-GATT-DESC] Não foi possível enumerar descriptors de ${char.uuid}: ${descriptorErr?.message || descriptorErr}`,
+                tag: 'AT',
+              });
+            }
           }
         } catch (e: any) {
           console.warn(`Erro ao ler characteristics do serviço ${service.uuid}:`, e);
@@ -400,6 +393,22 @@ export class ELM327Connection {
       if (allDiscoveredChars.length === 0) {
         throw new Error('Nenhuma characteristic encontrada nos serviços GATT do adaptador.');
       }
+
+      // V3 BLE AUDIT — Transparent Control Point (família UUID 49535343-4C8A-...).
+      // Apenas detecta e registra presença/propriedades. NÃO escreve nesta characteristic.
+      const transparentControlPoints = allDiscoveredChars.filter((c) =>
+        c.charUuid.toLowerCase().includes('-4c8a-')
+      );
+      this.onPacketLog({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'info',
+        raw: transparentControlPoints.length > 0 ? 'BLE_CONTROL_POINT_PRESENT' : 'BLE_CONTROL_POINT_ABSENT',
+        decoded: transparentControlPoints.length > 0
+          ? `[BLE-AUDIT] Transparent Control Point 4C8A PRESENTE: ${transparentControlPoints.map((c) => `${c.charUuid} (Service: ${c.serviceUuid}, read=${c.properties.read}, write=${c.properties.write}, writeWithoutResponse=${c.properties.writeWithoutResponse}, notify=${c.properties.notify}, indicate=${c.properties.indicate})`).join(' | ')}. Nenhuma escrita realizada.`
+          : '[BLE-AUDIT] Transparent Control Point 4C8A NÃO encontrado entre as characteristics acessíveis. Nenhuma alteração no perfil BLE foi realizada.',
+        tag: 'AT',
+      });
 
       // 3. Seleção explícita de TX e RX
       // TX precisa de: write OU writeWithoutResponse
