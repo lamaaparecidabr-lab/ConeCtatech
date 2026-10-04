@@ -6,6 +6,9 @@ export interface ActiveDpidSnapshot {
   updatedAt?: number;
   values?: Record<string, string | number>;
   note?: string;
+  catalogSource?: 'TTS/DataMaster' | 'Real-bike validation' | 'Unknown';
+  validation?: 'TTS_MAPPED' | 'TTS_REAL_VALIDATED' | 'DETECTED_UNMAPPED' | 'UNSUPPORTED' | 'UNKNOWN';
+  dataStreams?: string[];
 }
 
 export interface TelemetryData {
