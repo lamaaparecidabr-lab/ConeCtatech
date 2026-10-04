@@ -1023,6 +1023,8 @@ export class ELM327Connection {
               status: negative ? 'negative' : 'timeout',
               raw: result.reply.trim() || undefined,
               updatedAt: Date.now(),
+              catalogSource: negative ? 'TTS/DataMaster' : 'Unknown',
+              validation: negative ? 'UNSUPPORTED' : 'UNKNOWN',
               note: negative ? 'ECM respondeu negativamente a este DPID.'
                 : elmRejected ? 'Comando rejeitado pelo ELM.'
                 : 'Sem resposta dentro do tempo da consulta.',
@@ -1325,8 +1327,8 @@ export class ELM327Connection {
     }
     await sleep(2000);
 
-    // 3. VARREDURA EXPERIMENTAL dados ativos RESEARCH J1850 (somente leitura)
-    // Rev11-Catalog: DPIDs 0x11..0x21 catalogados no banco HD-DatastreamConfig.
+    // 3. VARREDURA ATIVA J1850 dirigida pelo catálogo TTS/DataMaster (somente leitura)
+    // DPIDs 0x11..0x21 definidos no banco oficial TTS/DataMaster HD-DatastreamConfig.
     // IMPORTANTE: referências CAN 0x200..0x210 ficam deliberadamente FORA desta rotina.
     // Elas pertencem à futura implementação CAN e não devem ser misturadas ao J1850 atual.
     // IDs internos $20xx também NÃO são convertidos em DPID por suposição.
@@ -1352,7 +1354,7 @@ export class ELM327Connection {
     ];
     const experimentalResults: string[] = [];
 
-    this.onStatusChange(`Scanner #${scanNumber}: iniciando varredura experimental catálogo técnico...`);
+    this.onStatusChange(`Scanner #${scanNumber}: iniciando varredura J1850 TTS/DataMaster...`);
     const hActive = await this.chat('ATSH 6C 10 F1', 'OK', 700);
     if (hActive.success) {
       const allowLong = await this.chat('ATAL', 'OK', 700);
@@ -1366,7 +1368,7 @@ export class ELM327Connection {
             timestamp: new Date().toLocaleTimeString(),
             type: 'info',
             raw: request,
-            decoded: `[RESEARCH-TEST][SCAN #${scanNumber}][DPID:0x${item.id}][REQUEST] ${item.label}`,
+            decoded: `[DATAMASTER][SCAN #${scanNumber}][DPID:0x${item.id}][REQUEST] ${item.label}`,
             tag: 'STATUS',
           });
 
@@ -1390,7 +1392,7 @@ export class ELM327Connection {
               timestamp: new Date().toLocaleTimeString(),
               type: 'rx',
               raw: res.reply.trim() || request,
-              decoded: `[RESEARCH-TEST][SCAN #${scanNumber}][DPID:0x${item.id}][POSITIVE][${elapsed}ms] Frame bruto preservado; resposta encaminhada ao decoder.`,
+              decoded: `[DATAMASTER][SCAN #${scanNumber}][DPID:0x${item.id}][POSITIVE][${elapsed}ms] Frame bruto preservado; resposta encaminhada ao decoder.`,
               tag: 'STATUS',
             });
           } else {
@@ -1402,6 +1404,8 @@ export class ELM327Connection {
                 status: negative ? 'negative' : 'timeout',
                 raw: res.reply.trim() || undefined,
                 updatedAt: Date.now(),
+                catalogSource: negative ? 'TTS/DataMaster' : 'Unknown',
+                validation: negative ? 'UNSUPPORTED' : 'UNKNOWN',
                 note: negative ? 'ECM respondeu negativamente à consulta nesta motocicleta.' : (elmRejected ? 'Comando rejeitado pelo ELM.' : 'Sem resposta dentro do tempo da consulta.'),
               },
             };
@@ -1411,7 +1415,7 @@ export class ELM327Connection {
               timestamp: new Date().toLocaleTimeString(),
               type: negative || elmRejected ? 'error' : 'info',
               raw: res.reply.trim() || `${request} -> SEM RESPOSTA`,
-              decoded: `[RESEARCH-TEST][SCAN #${scanNumber}][DPID:0x${item.id}][${negative ? 'NEGATIVE' : elmRejected ? 'ELM-REJECT' : 'TIMEOUT'}][${elapsed}ms] Resposta integral preservada; nenhum valor inferido.`,
+              decoded: `[DATAMASTER][SCAN #${scanNumber}][DPID:0x${item.id}][${negative ? 'UNSUPPORTED' : elmRejected ? 'ELM-REJECT' : 'TIMEOUT'}][${elapsed}ms] Resposta integral preservada; nenhum valor inferido.`,
               tag: 'STATUS',
             });
           }

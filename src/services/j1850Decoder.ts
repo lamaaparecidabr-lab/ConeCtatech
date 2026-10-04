@@ -1,4 +1,6 @@
 import { TelemetryData, PacketLog } from '../types';
+import { decodeDataMasterJ1850Dpid } from './datamasterJ1850Decoder';
+import { getDataMasterDpidPayloadSize, getDataMasterStreamsForDpid } from './datamasterJ1850Catalog';
 
 /**
  * Cálculo e validação do CRC VPW Harley (polinômio 0x1D, valor inicial 0xFF)
@@ -183,7 +185,13 @@ export class J1850Decoder {
     let telemetry = { ...state, lastUpdated: Date.now() };
     let packetLog: PacketLog | undefined;
 
-    const storeActiveDpid = (dpid: string, rawBytes: number[], values: Record<string, string | number>, note?: string) => {
+    const storeActiveDpid = (
+      dpid: string,
+      rawBytes: number[],
+      values: Record<string, string | number>,
+      note?: string,
+      meta?: { catalogSource?: 'TTS/DataMaster' | 'Real-bike validation' | 'Unknown'; validation?: 'TTS_MAPPED' | 'TTS_REAL_VALIDATED' | 'DETECTED_UNMAPPED' | 'UNSUPPORTED' | 'UNKNOWN'; dataStreams?: string[] },
+    ) => {
       telemetry.activeDpidData = {
         ...(telemetry.activeDpidData || {}),
         [dpid]: {
@@ -193,6 +201,10 @@ export class J1850Decoder {
           updatedAt: Date.now(),
           values,
           note,
+          catalogSource: getDataMasterDpidPayloadSize(dpid) > 0 ? 'TTS/DataMaster' : 'Unknown',
+          validation: getDataMasterDpidPayloadSize(dpid) > 0 ? 'TTS_MAPPED' : 'UNKNOWN',
+          dataStreams: getDataMasterStreamsForDpid(dpid).map(s=>s.name),
+          ...meta,
         },
       };
     };
@@ -679,7 +691,7 @@ export class J1850Decoder {
         telemetry.batteryVoltage = Math.round((batteryRaw * 0.1) * 10) / 10;
         telemetry.manifoldPressureKpa = Math.round((mapRaw * 0.368999988 + 10.35400009) * 10) / 10;
         telemetry.throttlePosition = Math.round((tpsRaw * 0.45449999) * 10) / 10;
-        storeActiveDpid('11', frameBytes.slice(5, 11), { RPM: activeRpm, 'Desired Idle': desiredIdleRpm, 'Bateria (V)': telemetry.batteryVoltage, 'MAP (kPa)': telemetry.manifoldPressureKpa, 'TPS (%)': telemetry.throttlePosition }, 'Validado em moto real.');
+        storeActiveDpid('11', frameBytes.slice(5, 11), { RPM: activeRpm, 'Desired Idle': desiredIdleRpm, 'Bateria (V)': telemetry.batteryVoltage, 'MAP (kPa)': telemetry.manifoldPressureKpa, 'TPS (%)': telemetry.throttlePosition }, 'TTS/DataMaster + comportamento validado em moto real.', { catalogSource:'Real-bike validation', validation:'TTS_REAL_VALIDATED' });
 
         packetLog = {
           id: Math.random().toString(36).substring(2, 9),
@@ -707,7 +719,7 @@ export class J1850Decoder {
         const iatVolts = frameBytes[8] * 0.01953125;
         const mapVolts = frameBytes[9] * 0.01953125;
         const tpsVolts = frameBytes[10] * 0.01953125;
-        storeActiveDpid('12', frameBytes.slice(5, 11), { 'Temp. motor (°C)': engineTempCActive, 'IAT (°C)': intakeTempCActive, 'ET sensor (V)': Number(etVolts.toFixed(3)), 'IAT sensor (V)': Number(iatVolts.toFixed(3)), 'MAP sensor (V)': Number(mapVolts.toFixed(3)), 'TPS sensor (V)': Number(tpsVolts.toFixed(3)) }, 'Fonte ativa; temperatura usa RAW − 16.');
+        storeActiveDpid('12', frameBytes.slice(5, 11), { 'Temp. motor (°C)': engineTempCActive, 'IAT (°C)': intakeTempCActive, 'ET sensor (V)': Number(etVolts.toFixed(3)), 'IAT sensor (V)': Number(iatVolts.toFixed(3)), 'MAP sensor (V)': Number(mapVolts.toFixed(3)), 'TPS sensor (V)': Number(tpsVolts.toFixed(3)) }, 'TTS/DataMaster + comportamento validado em moto real; temperatura ativa RAW − 16.', { catalogSource:'Real-bike validation', validation:'TTS_REAL_VALIDATED' });
         packetLog = {
           id: Math.random().toString(36).substring(2, 9),
           timestamp: new Date().toLocaleTimeString(),
@@ -746,9 +758,9 @@ export class J1850Decoder {
     }
     else if (cleanHex.startsWith('6cf1106a18') && bytes.length >= 11) {
       const d = bytes.slice(5, 11);
-      storeActiveDpid('18', d, { 'VE Front': d[0], 'VE Rear': d[1], 'VE New Front': d[2], 'VE New Rear': d[3], 'Warm Up AFR raw': d[4], IAC: d[5] });
+      storeActiveDpid('18', d, { 'VE Front': Number((d[0]*0.5).toFixed(1)), 'VE Rear': Number((d[1]*0.5).toFixed(1)), 'VE New Front': Number((d[2]*0.5).toFixed(1)), 'VE New Rear': Number((d[3]*0.5).toFixed(1)), 'Warm Up AFR': Number((d[4]*0.1).toFixed(1)), IAC: d[5] }, 'Fórmulas TTS/DataMaster.', { catalogSource:'TTS/DataMaster', validation:'TTS_MAPPED', dataStreams:['Generic Data','Generic O2 Data','DBW Data','VTune Data'] });
       packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
-        decoded: `[RESEARCH-TEST][DPID:0x18] VE-F=${d[0]} | VE-R=${d[1]} | VE-New-F=${d[2]} | VE-New-R=${d[3]} | WarmUpAFR-raw=${d[4]} | IAC=${d[5]} | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+        decoded: `[DATAMASTER][DPID:0x18] VE-F=${(d[0]*0.5).toFixed(1)}% | VE-R=${(d[1]*0.5).toFixed(1)}% | VE-New-F=${(d[2]*0.5).toFixed(1)}% | VE-New-R=${(d[3]*0.5).toFixed(1)}% | WarmUpAFR=${(d[4]*0.1).toFixed(1)} | IAC=${d[5]} | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
     }
     else if (cleanHex.startsWith('6cf1106a1a') && bytes.length >= 11) {
       const d = bytes.slice(5, 11);
@@ -765,7 +777,7 @@ export class J1850Decoder {
       const integratorR = Number((d[3] * 0.78125).toFixed(2));
       const longTermF = Number((d[4] * 0.78125).toFixed(2));
       const longTermR = Number((d[5] * 0.78125).toFixed(2));
-      storeActiveDpid('1D', d, { 'O2 Front (mV)': o2FrontMv, 'O2 Rear (mV)': o2RearMv, 'Integrator F (%)': integratorF, 'Integrator R (%)': integratorR, 'Long Term F (%)': longTermF, 'Long Term R (%)': longTermR }, 'Mapeamento DataMaster/TTS; ECM real respondeu. Conversão catalogada mantida rastreável por RAW.');
+      storeActiveDpid('1D', d, { 'O2 Front (mV)': o2FrontMv, 'O2 Rear (mV)': o2RearMv, 'Integrator F (%)': integratorF, 'Integrator R (%)': integratorR, 'Long Term F (%)': longTermF, 'Long Term R (%)': longTermR }, 'Mapeamento TTS/DataMaster + comportamento validado em moto real; RAW preservado.', { catalogSource:'Real-bike validation', validation:'TTS_REAL_VALIDATED' });
       // Espelha somente grandezas sustentadas pelo DPID 0x1D. Não deriva AFR narrowband.
       telemetry.frontO2Voltage = o2FrontMv / 1000;
       telemetry.rearO2Voltage = o2RearMv / 1000;
@@ -800,14 +812,25 @@ export class J1850Decoder {
         decoded: `[RESEARCH-STRONG][DPID:0x1B] RPM=${rpm} | RunTimeRaw=${runTimeRaw} | Barometer=${baroKpa.toFixed(1)}kPa | SyncRaw=0x${syncRaw.toString(16).padStart(2,'0').toUpperCase()} | VehicleSpeedRaw=${vehicleSpeedRaw} | RAW=${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
     }
 
-    // Para os demais DPIDs J1850 catalogados, preservar os seis bytes integralmente
-    // até validarmos na moto a variante/configuração exata e suas fórmulas.
-    else if (/^6cf1106a(14|15|1c|1e|1f|20|21)/.test(cleanHex) && bytes.length >= 11) {
+    // Demais DPIDs ativos: decodificação dirigida pelo catálogo TTS/DataMaster.
+    // A fórmula só é aplicada após resposta positiva da ECM; DPID não suportado continua
+    // sendo classificado pela camada de transporte como negative/unsupported.
+    else if (/^6cf1106a(14|15|1c|1e|1f|20|21)/.test(cleanHex)) {
       const dpid = cleanHex.substring(8,10).toUpperCase();
-      const d = bytes.slice(5, 11);
-      storeActiveDpid(dpid, d, {}, ['14','15','1C'].includes(dpid) ? 'Resposta positiva coletada; bytes preservados em RAW até validação completa das fórmulas.' : 'Resposta positiva não esperada nesta motocicleta; RAW preservado.');
-      packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
-        decoded: `[RESEARCH-TEST][DPID:0x${dpid}][MAPPED-RAW] ${d.map(v=>v.toString(16).padStart(2,'0')).join(' ').toUpperCase()}`, tag: 'STATUS' };
+      const payloadSize = getDataMasterDpidPayloadSize(dpid);
+      const d = payloadSize > 0 ? bytes.slice(5, 5 + payloadSize) : [];
+      const decodedDm = decodeDataMasterJ1850Dpid(dpid, d);
+      if (decodedDm && d.length === payloadSize) {
+        storeActiveDpid(dpid, d, decodedDm.values, decodedDm.note, {
+          catalogSource: 'TTS/DataMaster', validation: decodedDm.validation, dataStreams: decodedDm.streams,
+        });
+        packetLog = { id: Math.random().toString(36).substring(2, 9), timestamp: new Date().toLocaleTimeString(), type: 'rx', raw: originalLine,
+          decoded: `[DATAMASTER][DPID:0x${dpid}][TTS_MAPPED] ${Object.entries(decodedDm.values).map(([k,v])=>`${k}=${v}`).join(' | ')} | RAW=${decodedDm.raw}`, tag: 'STATUS' };
+      } else {
+        storeActiveDpid(dpid, d, {}, 'Resposta positiva, mas payload não corresponde à definição TTS/DataMaster carregada.', {
+          catalogSource: 'Unknown', validation: 'DETECTED_UNMAPPED',
+        });
+      }
     }
 
     // =========================================================================
