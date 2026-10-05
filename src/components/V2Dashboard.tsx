@@ -92,6 +92,7 @@ export const V2Dashboard: React.FC<V2DashboardProps> = ({
               <span>Calibração</span><strong>{telemetry.ecuCalId || '—'}</strong>
               <span>Ano / Modelo</span><strong>{identity?.modelYear ? `${identity.modelYear} · ${identity.factoryModel || identity.commercialName || 'Harley-Davidson'}` : 'Harley-Davidson'}</strong>
               <span>Motor</span><strong>{identity?.engine || '—'}</strong>
+              <span>Planta de montagem</span><strong>{identity?.assemblyPlant ? `${telemetry.vin?.[10] || ''} · ${identity.assemblyPlant}` : 'Unknown'}</strong>
             </div>
           )}
         </article>
