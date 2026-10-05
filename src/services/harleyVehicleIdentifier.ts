@@ -164,7 +164,31 @@ const WMI_ORIGIN: Record<string,string> = {
   '1HD':'Estados Unidos', '5HD':'Estados Unidos/Tailândia (exportação, conforme model-year)',
   '932':'Brasil', 'MEG':'Índia', 'MLY':'Tailândia'
 };
-const PLANTS: Record<string,string> = {Y:'York, PA',K:'Kansas City, MO',B:'York, PA',D:'Manaus, Brasil',N:'Haryana, Índia',S:'Rayong, Tailândia'};
+// Assembly Plant (VIN físico, caractere 11). Os códigos mudam por model-year;
+// nunca inferir uma planta por semelhança. Ausência de referência segura => undefined/Unknown na UI.
+type PlantRule = { from: number; to: number; code: string; plant: string; wmi?: string[] };
+const ASSEMBLY_PLANT_RULES: PlantRule[] = [
+  // Estrutura histórica usada pelas famílias Harley-Davidson até MY2009.
+  { from: 2000, to: 2009, code: 'Y', plant: 'York, Pennsylvania, USA' },
+  { from: 2000, to: 2009, code: 'K', plant: 'Kansas City, Missouri, USA' },
+  // Produção CKD brasileira histórica. Restringida ao WMI brasileiro para não
+  // transformar o código M de outro contexto/época em Manaus por aproximação.
+  { from: 2007, to: 2009, code: 'M', plant: 'H-D Brazil - Manaus, Brasil (CKD)', wmi: ['932'] },
+
+  // Estrutura MY2010+. York/Kansas City/Manaus foram recodificadas B/C/D.
+  { from: 2010, to: 2026, code: 'B', plant: 'York, Pennsylvania, USA' },
+  { from: 2010, to: 2019, code: 'C', plant: 'Kansas City, Missouri, USA' },
+  { from: 2010, to: 2026, code: 'D', plant: 'H-D Brazil - Manaus, Brasil (CKD)' },
+  { from: 2011, to: 2021, code: 'N', plant: 'Haryana, Índia (Bawal District, Rewari)' },
+  { from: 2019, to: 2026, code: 'S', plant: 'Tasit, Pluagdang, Rayong, Tailândia' },
+];
+
+function assemblyPlantFor(year: number | undefined, code: string, wmi: string): string | undefined {
+  if (!year || !code) return undefined;
+  return ASSEMBLY_PLANT_RULES.find(rule =>
+    year >= rule.from && year <= rule.to && rule.code === code && (!rule.wmi || rule.wmi.includes(wmi))
+  )?.plant;
+}
 const TRANSLITERATION: Record<string,number> = {A:1,B:2,C:3,D:4,E:5,F:6,G:7,H:8,J:1,K:2,L:3,M:4,N:5,P:7,R:9,S:2,T:3,U:4,V:5,W:6,X:7,Y:8,Z:9};
 const VIN_WEIGHTS=[8,7,6,5,4,3,2,10,0,9,8,7,6,5,4,3,2];
 function vinCheckDigit(vin:string): string {
@@ -202,7 +226,7 @@ export function identifyHarleyVehicle(vin?: string): VehicleIdentity | null {
   if(model) Object.assign(identity,model);
   if(engine){identity.engine=engine.engine;identity.displacementCc=engine.displacementCc;}
   identity.manufacturingOrigin=WMI_ORIGIN[identity.wmi!];
-  identity.assemblyPlant=PLANTS[normalized[10]];
+  identity.assemblyPlant=assemblyPlantFor(modelYear, normalized[10], identity.wmi!);
   identity.marketConfiguration=marketFor(modelYear,normalized);
   return identity;
 }
